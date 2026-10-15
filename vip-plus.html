@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Devenir VIP+ - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <section class="account-page">
+    <div class="account-card portal-card">
+      <p class="account-eyebrow">GABSHOP VIP+</p>
+      <h1>Offre VIP+</h1>
+      
+      <p class="portal-description">
+        Profite d'une réduction exceptionnelle de <strong>-50% sur l'ensemble de la boutique</strong> et sur toutes tes commandes personnalisées pour seulement 5€/mois.
+      </p>
+
+      <div class="portal-actions">
+        <button type="button" id="btn-devenir-vipplus" class="btn btn-primary">
+          Devenir VIP+ pour -50% sur tout
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  import { auth, authReady } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import { obtenirRoleUtilisateur } from './main.js';
+
+  let utilisateurCourant = null;
+
+  await authReady;
+
+  // ---------------------------------------------------------
+  // RESTRICTION D'ACCÈS
+  // ---------------------------------------------------------
+  onAuthStateChanged(auth, async function(utilisateur) {
+    if (!utilisateur) {
+      // Redirection vers la connexion si non connecté
+      window.location.href = 'portail-compte.html';
+      return;
+    }
+
+    utilisateurCourant = utilisateur;
+    const role = await obtenirRoleUtilisateur(utilisateur);
+
+    // Si l'utilisateur est DÉJÀ VIP+, redirection vers vip.html
+    if (role === 'vip_payant') {
+      window.location.href = 'vip.html';
+    }
+  });
+
+  // ---------------------------------------------------------
+  // OVERLAY / MODALE DE CONFIRMATION
+  // ---------------------------------------------------------
+  function fermerModaleVipPlus() {
+    const overlay = document.getElementById('modale-vipplus');
+    if (overlay) {
+      overlay.style.display = 'none';
+      overlay.classList.add('hidden');
+    }
+
+    const casePaiement = document.getElementById('case-paiement');
+    const caseConditions = document.getElementById('case-conditions');
+    const btnEnvoyer = document.getElementById('vipplus-envoyer');
+
+    if (casePaiement) casePaiement.checked = false;
+    if (caseConditions) caseConditions.checked = false;
+    if (btnEnvoyer) {
+      btnEnvoyer.disabled = true;
+      btnEnvoyer.textContent = 'Envoyer';
+    }
+  }
+
+  function creerModaleVipPlus() {
+    if (document.getElementById('modale-vipplus')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modale-vipplus';
+    overlay.className = 'panier-connexion-overlay hidden';
+
+    overlay.innerHTML = `
+      <div class="panier-connexion-modale" role="dialog" aria-modal="true">
+        <p class="panier-connexion-titre">Abonnement VIP+</p>
+
+        <label class="commande-case">
+          <input type="checkbox" id="case-paiement">
+          <span>Je confirme pouvoir payer 5€/mois à partir du prochain 1er du mois</span>
+        </label>
+
+        <label class="commande-case">
+          <input type="checkbox" id="case-conditions">
+          <span>J'accepte les <a href="condition.html" target="_blank" class="lien">conditions d'achat et d'utilisation</a></span>
+        </label>
+
+        <div class="panier-connexion-actions">
+          <button type="button" class="btn btn-secondary" id="vipplus-annuler">Annuler</button>
+          <button type="button" class="btn btn-primary" id="vipplus-envoyer" disabled>Envoyer</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const casePaiement = document.getElementById('case-paiement');
+    const caseConditions = document.getElementById('case-conditions');
+    const btnEnvoyer = document.getElementById('vipplus-envoyer');
+
+    function verifierCases() {
+      btnEnvoyer.disabled = !(casePaiement.checked && caseConditions.checked);
+    }
+
+    casePaiement.addEventListener('change', verifierCases);
+    caseConditions.addEventListener('change', verifierCases);
+
+    // Clic sur Envoyer
+    btnEnvoyer.addEventListener('click', async function() {
+      btnEnvoyer.disabled = true;
+      btnEnvoyer.textContent = 'Envoi en cours...';
+
+      try {
+        await envoyerDemandeVipPlus();
+        fermerModaleVipPlus();
+        alert("Ta demande pour devenir VIP+ a bien été envoyée !");
+        window.location.href = 'index.html';
+      } catch (erreur) {
+        console.error("Erreur lors de l'envoi :", erreur);
+        alert("Impossible d'envoyer la demande. Réessaie plus tard.");
+        btnEnvoyer.disabled = false;
+        btnEnvoyer.textContent = 'Envoyer';
+      }
+    });
+  }
+
+  function ouvrirModaleVipPlus() {
+    creerModaleVipPlus();
+
+    const overlay = document.getElementById('modale-vipplus');
+    if (overlay) {
+      overlay.style.display = 'flex';
+      overlay.classList.remove('hidden');
+    }
+  }
+
+  // Écouteur global pour fermer au clic sur Annuler ou à côté
+  document.addEventListener('click', function(e) {
+    const overlay = document.getElementById('modale-vipplus');
+    if (!overlay || overlay.classList.contains('hidden') || overlay.style.display === 'none') return;
+
+    if (e.target.id === 'vipplus-annuler' || e.target === overlay) {
+      e.preventDefault();
+      fermerModaleVipPlus();
+    }
+  });
+
+  // Touche Échap
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      fermerModaleVipPlus();
+    }
+  });
+
+  // ---------------------------------------------------------
+  // ENVOI FORM SUBMIT
+  // ---------------------------------------------------------
+  async function envoyerDemandeVipPlus() {
+    await fetch('https://formsubmit.co/ajax/panzertigerblack41@gmail.com', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        _subject: 'Nouvelle demande d\'abonnement VIP+',
+        _template: 'table',
+        email_compte: utilisateurCourant.email,
+        uid_compte: utilisateurCourant.uid,
+        message: 'L\'utilisateur souhaite souscrire à l\'offre VIP+ (5€/mois).',
+        date_demande: new Date().toLocaleString('fr-FR')
+      })
+    });
+  }
+
+  document.getElementById('btn-devenir-vipplus').addEventListener('click', ouvrirModaleVipPlus);
+</script>
+
+</body>
+</html>

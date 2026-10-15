@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statut VIP — 3D commande</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .status-container {
+      min-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 20px;
+    }
+
+    .status-title {
+      font-size: 1.8rem;
+      color: var(--ink-soft);
+      margin: 0;
+    }
+
+    .status-badge-static {
+      display: inline-block;
+      padding: 12px 36px;
+      border: 3px solid var(--accent);
+      background: var(--bg-elevated);
+      font-family: 'Fraunces', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--ink);
+      border-radius: 8px;
+    }
+
+    .status-text-1 {
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .status-text-2 {
+      font-size: 0.9rem;
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 420px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="site-header"></div>
+
+  <main>
+    <div class="status-container">
+      <p class="status-title">Tu es</p>
+      
+      <div class="status-badge-static">⭐ VIP</div>
+
+      <p class="status-text-1">Tu as : -20% sur tout !</p>
+      <p class="status-text-2">Voulez-vous passer à VIP+ pour 5€/mois et avoir -50% ?</p>
+    </div>
+  </main>
+
+  <script type="module" src="main.js"></script>
+  <script type="module">
+    import { protegerPage } from './main.js';
+    protegerPage(['vip_gratuit']);
+</script>
+</body>
+</html>

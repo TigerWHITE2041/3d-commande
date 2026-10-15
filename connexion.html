@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Connexion - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main class="account-page">
+
+  <section class="account-card">
+
+    <p class="account-eyebrow">GABSHOP</p>
+
+    <h1>Se connecter</h1>
+
+    <p class="account-intro">
+      Connecte-toi à ton compte pour accéder à tes informations.
+    </p>
+
+    <form id="connexion-form" class="account-form">
+
+      <div>
+        <label for="email">Adresse e-mail</label>
+
+        <input
+          type="email"
+          id="email"
+          name="email"
+          autocomplete="email"
+          required
+          placeholder="ton@email.com"
+        >
+      </div>
+
+      <div>
+        <label for="mot-de-passe">Mot de passe</label>
+
+        <input
+          type="password"
+          id="mot-de-passe"
+          name="mot-de-passe"
+          autocomplete="current-password"
+          required
+          placeholder="Ton mot de passe"
+        >
+      </div>
+
+      <div class="mdp-oublie-conteneur">
+        <button type="button" id="lien-mdp-oublie" class="lien-discret">
+          Mot de passe oublié ?
+        </button>
+      </div>
+
+      <div id="bloc-mdp-oublie" class="hidden">
+        <label for="email-reinitialisation">Adresse email pour réinitialiser le mot de passe</label>
+
+        <input
+          type="email"
+          id="email-reinitialisation"
+          autocomplete="email"
+          placeholder="ton@email.com"
+        >
+
+        <button type="button" id="bouton-envoyer-reinitialisation" class="btn btn-secondary">
+          Envoyer le lien de réinitialisation
+        </button>
+
+        <p id="message-reinitialisation" class="form-error" style="display: none;"></p>
+      </div>
+
+      <p
+        id="connexion-message"
+        class="form-error"
+        style="display: none;"
+      ></p>
+
+      <button type="submit" class="btn btn-primary">
+        Se connecter
+      </button>
+
+    </form>
+
+    <div class="account-separator">
+      <span>ou</span>
+    </div>
+
+    <div class="account-register">
+
+      <p>Tu n'as pas encore de compte ?</p>
+
+      <a href="inscription.html" class="btn btn-secondary">
+        Créer un compte
+      </a>
+
+    </div>
+
+  </section>
+
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  // =========================================================
+  // CONNEXION (Firebase Authentication)
+  // =========================================================
+
+  import { auth, authReady } from './firebase-config.js';
+  import {
+    signInWithEmailAndPassword,
+    sendEmailVerification,
+    sendPasswordResetEmail,
+    signOut
+  } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+
+  const formulaireConnexion =
+    document.getElementById('connexion-form');
+
+  const messageConnexion =
+    document.getElementById('connexion-message');
+
+  const boutonConnexion =
+    formulaireConnexion.querySelector('button[type="submit"]');
+
+
+  // ---------------------------------------------------------
+  // Afficher un message (erreur en rouge, succès en vert),
+  // avec en option un bouton "Renvoyer l'email de confirmation"
+  // ---------------------------------------------------------
+
+  function afficherMessage(message, options) {
+
+    options = options || {};
+
+    messageConnexion.innerHTML = '';
+    messageConnexion.classList.remove('form-error', 'form-success');
+    messageConnexion.classList.add(options.succes ? 'form-success' : 'form-error');
+    messageConnexion.appendChild(document.createTextNode(message));
+    messageConnexion.style.display = 'block';
+
+    if (options.avecBoutonRenvoi) {
+
+      const bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.className = 'btn btn-secondary';
+      bouton.textContent = "Renvoyer l'email de confirmation";
+      bouton.addEventListener('click', renvoyerEmailConfirmation);
+
+      messageConnexion.appendChild(document.createElement('br'));
+      messageConnexion.appendChild(bouton);
+    }
+  }
+
+
+  // ---------------------------------------------------------
+  // Traduire les erreurs Firebase en messages compréhensibles
+  // ---------------------------------------------------------
+
+  function messageErreurFirebase(erreur) {
+
+    switch (erreur.code) {
+
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return "Adresse e-mail ou mot de passe incorrect.";
+
+      case 'auth/invalid-email':
+        return "Adresse e-mail invalide.";
+
+      case 'auth/too-many-requests':
+        return "Trop de tentatives, merci de réessayer dans quelques minutes.";
+
+      default:
+        return "Une erreur est survenue (" + erreur.code + "). Réessaie.";
+    }
+  }
+
+
+  // ---------------------------------------------------------
+  // Renvoyer l'email de confirmation (se reconnecte brièvement
+  // avec les identifiants du formulaire pour pouvoir renvoyer le lien)
+  // ---------------------------------------------------------
+
+  async function renvoyerEmailConfirmation() {
+
+    const email =
+      document.getElementById('email').value.trim();
+
+    const motDePasse =
+      document.getElementById('mot-de-passe').value;
+
+    try {
+
+      await authReady;
+
+      const resultat =
+        await signInWithEmailAndPassword(auth, email, motDePasse);
+
+      await sendEmailVerification(resultat.user);
+      await signOut(auth);
+
+      afficherMessage(
+        "Email de confirmation renvoyé ! Vérifie ta boîte mail (et tes spams).",
+        { succes: true }
+      );
+
+    } catch (erreur) {
+
+      console.error(erreur);
+      afficherMessage("Impossible de renvoyer l'email pour le moment. Réessaie dans quelques instants.");
+    }
+  }
+
+
+  // ---------------------------------------------------------
+  // Mot de passe oublié
+  // ---------------------------------------------------------
+
+  const boutonMdpOublie =
+    document.getElementById('lien-mdp-oublie');
+
+  const blocMdpOublie =
+    document.getElementById('bloc-mdp-oublie');
+
+  const champEmailReinit =
+    document.getElementById('email-reinitialisation');
+
+  const boutonEnvoyerReinit =
+    document.getElementById('bouton-envoyer-reinitialisation');
+
+  const messageReinit =
+    document.getElementById('message-reinitialisation');
+
+
+  function afficherMessageReinit(message, succes) {
+
+    messageReinit.textContent = message;
+    messageReinit.classList.remove('form-error', 'form-success');
+    messageReinit.classList.add(succes ? 'form-success' : 'form-error');
+    messageReinit.style.display = 'block';
+  }
+
+
+  boutonMdpOublie.addEventListener('click', function() {
+
+    // Reprend l'email déjà tapé dans le formulaire de connexion, si présent
+    const emailDejaSaisi =
+      document.getElementById('email').value.trim();
+
+    if (emailDejaSaisi) {
+      champEmailReinit.value = emailDejaSaisi;
+    }
+
+    blocMdpOublie.classList.toggle('hidden');
+  });
+
+
+  boutonEnvoyerReinit.addEventListener('click', async function() {
+
+    const email = champEmailReinit.value.trim();
+
+    messageReinit.style.display = 'none';
+
+    if (!email) {
+      afficherMessageReinit("Merci d'indiquer ton adresse email.", false);
+      return;
+    }
+
+    boutonEnvoyerReinit.disabled = true;
+    boutonEnvoyerReinit.textContent = 'Envoi en cours...';
+
+    // Message générique : par sécurité, on ne révèle jamais si un
+    // compte existe ou non avec cette adresse.
+    const messageGenerique =
+      "Si un compte existe avec cette adresse, un email de réinitialisation vient d'être envoyé. Vérifie ta boîte mail (et tes spams).";
+
+    try {
+
+      await authReady;
+      await sendPasswordResetEmail(auth, email);
+      afficherMessageReinit(messageGenerique, true);
+
+    } catch (erreur) {
+
+      console.error(erreur);
+
+      if (erreur.code === 'auth/invalid-email') {
+        afficherMessageReinit("Adresse email invalide.", false);
+      } else {
+        afficherMessageReinit(messageGenerique, true);
+      }
+
+    } finally {
+
+      boutonEnvoyerReinit.disabled = false;
+      boutonEnvoyerReinit.textContent = 'Envoyer le lien de réinitialisation';
+    }
+  });
+
+
+  // ---------------------------------------------------------
+  // Connexion
+  // ---------------------------------------------------------
+
+  formulaireConnexion.addEventListener(
+    'submit',
+    async function(event) {
+
+      event.preventDefault();
+
+      messageConnexion.style.display = 'none';
+
+
+      const email =
+        document.getElementById('email').value.trim();
+
+      const motDePasse =
+        document.getElementById('mot-de-passe').value;
+
+
+      if (!email || !motDePasse) {
+
+        afficherMessage(
+          "Veuillez remplir tous les champs."
+        );
+
+        return;
+      }
+
+
+      boutonConnexion.disabled = true;
+      boutonConnexion.textContent = 'Connexion...';
+
+
+      try {
+
+        await authReady;
+
+        const resultat = await signInWithEmailAndPassword(
+          auth,
+          email,
+          motDePasse
+        );
+
+        // -----------------------------------------------------
+        // Email non confirmé : on refuse la connexion
+        // -----------------------------------------------------
+
+        if (!resultat.user.emailVerified) {
+
+          // On (re)envoie automatiquement le lien de confirmation, sans
+          // attendre que le client clique sur "Renvoyer" en premier.
+          let vientDetreEnvoye = true;
+
+          try {
+            await sendEmailVerification(resultat.user);
+          } catch (erreurEnvoi) {
+            console.error(erreurEnvoi);
+            // Probablement un email déjà envoyé très récemment (cooldown Firebase)
+            vientDetreEnvoye = false;
+          }
+
+          await signOut(auth);
+
+          afficherMessage(
+            vientDetreEnvoye
+              ? "Un email de confirmation vient de t'être envoyé. Clique sur le lien qu'il contient (vérifie aussi tes spams), puis reconnecte-toi."
+              : "Ton adresse email n'est pas encore confirmée. Vérifie ta boîte mail (et tes spams) pour le lien déjà envoyé.",
+            { avecBoutonRenvoi: true }
+          );
+
+          return;
+        }
+
+
+        // -----------------------------------------------------
+        // Redirection
+        // -----------------------------------------------------
+
+        window.location.href = 'boutique.html';
+
+      } catch (erreur) {
+
+        console.error(erreur);
+
+        afficherMessage(messageErreurFirebase(erreur));
+
+      } finally {
+
+        boutonConnexion.disabled = false;
+        boutonConnexion.textContent = 'Se connecter';
+      }
+
+    }
+  );
+</script>
+
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gabshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <section class="shop-grid">
+    <article class="product-card">
+      <div class="product-image">
+        <img src="japanDragon.png" alt="Dragon japonais articulé">
+      </div>
+      <div class="product-info">
+        <h3 class="product-name">Dragon japonais</h3>
+        <p class="product-price">25,30 € <span class="price-detail">(24,90 € + taxes (0,40€))</span></p>
+        <div class="quantite-selecteur">
+          <button type="button" class="quantite-bouton" data-quantite-moins aria-label="Diminuer la quantité">−</button>
+          <input type="number" class="quantite-champ" value="1" min="1" max="99" aria-label="Quantité">
+          <button type="button" class="quantite-bouton" data-quantite-plus aria-label="Augmenter la quantité">+</button>
+        </div>
+        <button class="btn btn-primary add-to-cart">Ajouter au panier</button>
+        <a href="dragon-japonais.html" class="btn btn-secondary">Découvrir</a>
+      </div>
+    </article>
+  </section>
+</main>
+<script type="module" src="main.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gabshop - Boutique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <p id="boutique-chargement" class="account-intro">Chargement des articles...</p>
+  <p id="boutique-vide" class="account-intro hidden">Aucun article à afficher pour le moment.</p>
+  <section class="shop-grid" id="boutique-grille"></section>
+</main>
+
+<script type="module" src="main.js"></script>
+<script type="module">
+  import { auth } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import { 
+    ecouterProduits, 
+    formaterPrixProduit, 
+    filtrerProduitsParCollection,
+    obtenirRoleUtilisateur
+  } from './main.js';
+
+  const blocChargement = document.getElementById('boutique-chargement');
+  const blocVide = document.getElementById('boutique-vide');
+  const grille = document.getElementById('boutique-grille');
+
+  let tousLesProduits = [];
+  let roleUtilisateurActuel = 'membre';
+
+  function echapperHTML(texte) {
+    const element = document.createElement('div');
+    element.textContent = texte || '';
+    return element.innerHTML;
+  }
+
+  function creerCarteProduit(produit) {
+    return `
+      <article class="product-card">
+        <div class="product-image">
+          <img src="${echapperHTML((produit.images && produit.images[0]) || '')}" alt="${echapperHTML(produit.nom)}">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">${echapperHTML(produit.nom)}</h3>
+          <p class="product-price">${formaterPrixProduit(produit, roleUtilisateurActuel)}</p>
+          <div class="quantite-selecteur">
+            <button type="button" class="quantite-bouton" data-quantite-moins aria-label="Diminuer la quantité">−</button>
+            <input type="number" class="quantite-champ" value="1" min="1" max="99" aria-label="Quantité">
+            <button type="button" class="quantite-bouton" data-quantite-plus aria-label="Augmenter la quantité">+</button>
+          </div>
+          <button class="btn btn-primary add-to-cart">Ajouter au panier</button>
+          <a href="produit.html?id=${encodeURIComponent(produit.id)}" class="btn btn-secondary">Découvrir</a>
+        </div>
+      </article>
+    `;
+  }
+
+  function afficherProduits(produits) {
+    const parametres = new URLSearchParams(window.location.search);
+    const collectionFiltree = parametres.get('collection');
+
+    blocChargement.classList.add('hidden');
+
+    const filtres = filtrerProduitsParCollection(produits, collectionFiltree);
+
+    if (filtres.length === 0) {
+      blocVide.classList.remove('hidden');
+      grille.innerHTML = '';
+      return;
+    }
+
+    blocVide.classList.add('hidden');
+    grille.innerHTML = filtres.map(creerCarteProduit).join('');
+  }
+
+  // Écoute de l'état d'authentification pour adapter les prix selon le rôle VIP/VIP+
+  onAuthStateChanged(auth, async function(utilisateur) {
+    roleUtilisateurActuel = await obtenirRoleUtilisateur(utilisateur);
+    if (tousLesProduits.length > 0) {
+      afficherProduits(tousLesProduits);
+    }
+  });
+
+  ecouterProduits(function(produits) {
+    tousLesProduits = produits;
+    afficherProduits(tousLesProduits);
+  });
+
+  window.addEventListener('popstate', function() {
+    afficherProduits(tousLesProduits);
+  });
+</script>
+
+</body>
+</html>

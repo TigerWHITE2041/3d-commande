@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Mon panier - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+
+  <section class="panier-page">
+
+    <p class="account-eyebrow">GABSHOP</p>
+    <h1 class="panier-titre">Mon panier</h1>
+
+    <p id="panier-chargement" class="account-intro">
+      Chargement de ton panier...
+    </p>
+
+    <div id="panier-vide" class="hidden">
+      <p class="account-intro">
+        Ton panier est vide pour le moment.
+      </p>
+      <a href="boutique.html" class="btn btn-primary">
+        Découvrir la boutique
+      </a>
+    </div>
+
+    <div id="panier-contenu" class="hidden">
+
+      <div class="shop-grid" id="panier-grille"></div>
+
+      <div class="panier-total">
+        <span>Total</span>
+        <strong id="panier-total-montant">0,00 €</strong>
+      </div>
+
+      <div class="panier-actions">
+        <button type="button" id="bouton-commander" class="btn btn-primary">
+          Commander
+        </button>
+      </div>
+
+    </div>
+
+  </section>
+
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  // =========================================================
+  // MON PANIER
+  // =========================================================
+
+  import { auth, authReady } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    ecouterPanier,
+    retirerDuPanier,
+    modifierQuantitePanier,
+    creerApercuArticlePanier
+  } from './main.js';
+
+  const blocChargement = document.getElementById('panier-chargement');
+  const blocVide = document.getElementById('panier-vide');
+  const blocContenu = document.getElementById('panier-contenu');
+  const grille = document.getElementById('panier-grille');
+  const montantTotal = document.getElementById('panier-total-montant');
+  const boutonCommander = document.getElementById('bouton-commander');
+
+  let utilisateurCourant = null;
+  let desabonnerPanier = null;
+
+  let articlesCourants = [];
+  let totalCourant = 0;
+
+  // ---------------------------------------------------------
+  // Convertir un prix affiché ("24,90 €") en nombre
+  // ---------------------------------------------------------
+
+  function analyserPrix(texte) {
+    let chaineAAnalyser = String(texte).trim();
+
+    if (chaineAAnalyser.includes('<strong>')) {
+      const matchStrong = chaineAAnalyser.match(/<strong>(.*?)<\/strong>/i);
+      if (matchStrong && matchStrong[1]) {
+        chaineAAnalyser = matchStrong[1];
+      }
+    }
+
+    const correspondance = chaineAAnalyser.match(/-?\d+(?:[.,]\d+)?/);
+    if (!correspondance) return 0;
+
+    const nombre = parseFloat(correspondance[0].replace(',', '.'));
+    return isNaN(nombre) ? 0 : nombre;
+  }
+
+  function formaterPrix(nombre) {
+    return nombre.toFixed(2).replace('.', ',') + ' €';
+  }
+
+  // ---------------------------------------------------------
+  // Afficher les articles du panier
+  // ---------------------------------------------------------
+
+  function afficherArticles(articles) {
+    blocChargement.classList.add('hidden');
+    articlesCourants = articles;
+
+    if (articles.length === 0) {
+      blocVide.classList.remove('hidden');
+      blocContenu.classList.add('hidden');
+      return;
+    }
+
+    blocVide.classList.add('hidden');
+    blocContenu.classList.remove('hidden');
+
+    grille.innerHTML = articles
+      .map(function(article) {
+        return creerApercuArticlePanier(article, {
+          avecBoutonRetirer: true
+        });
+      })
+      .join('');
+
+    // Boutons "Retirer"
+    grille.querySelectorAll('[data-retirer]').forEach(function(bouton) {
+      bouton.addEventListener('click', async function() {
+        bouton.disabled = true;
+        bouton.textContent = 'Retrait...';
+
+        try {
+          await retirerDuPanier(utilisateurCourant.uid, bouton.dataset.retirer);
+        } catch (erreur) {
+          console.error("Impossible de retirer l'article :", erreur);
+          bouton.disabled = false;
+          bouton.textContent = 'Retirer';
+        }
+      });
+    });
+
+    // Sélecteurs de quantité
+    grille.querySelectorAll('.quantite-selecteur[data-produit-id]').forEach(function(selecteur) {
+      const id = selecteur.dataset.produitId;
+      const champ = selecteur.querySelector('.quantite-champ');
+      const boutonMoins = selecteur.querySelector('[data-quantite-moins]');
+      const boutonPlus = selecteur.querySelector('[data-quantite-plus]');
+
+      function appliquerQuantite(nouvelleValeur) {
+        const valeur = Math.max(1, Math.min(99, nouvelleValeur));
+        champ.value = valeur;
+
+        modifierQuantitePanier(utilisateurCourant.uid, id, valeur).catch(function(erreur) {
+          console.error('Impossible de modifier la quantité :', erreur);
+        });
+      }
+
+      boutonMoins.addEventListener('click', function() {
+        appliquerQuantite((parseInt(champ.value, 10) || 1) - 1);
+      });
+
+      boutonPlus.addEventListener('click', function() {
+        appliquerQuantite((parseInt(champ.value, 10) || 1) + 1);
+      });
+
+      champ.addEventListener('change', function() {
+        appliquerQuantite(parseInt(champ.value, 10) || 1);
+      });
+    });
+
+    // Calcul du total
+    totalCourant = articles.reduce(function(somme, article) {
+      return somme + analyserPrix(article.prix) * (article.quantite || 1);
+    }, 0);
+
+    montantTotal.textContent = formaterPrix(totalCourant);
+  }
+
+  // ---------------------------------------------------------
+  // Overlay / Modale de confirmation de commande
+  // ---------------------------------------------------------
+
+  function fermerModaleCommande() {
+    const overlay = document.getElementById('modale-commande');
+    if (overlay) {
+      overlay.style.display = 'none';
+      overlay.classList.add('hidden');
+    }
+
+    const caseArgent = document.getElementById('case-argent');
+    const caseConditions = document.getElementById('case-conditions');
+    const boutonConfirmer = document.getElementById('commande-confirmer');
+
+    if (caseArgent) caseArgent.checked = false;
+    if (caseConditions) caseConditions.checked = false;
+    if (boutonConfirmer) {
+      boutonConfirmer.disabled = true;
+      boutonConfirmer.textContent = 'Commander';
+    }
+  }
+
+  function creerModaleCommande() {
+    if (document.getElementById('modale-commande')) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modale-commande';
+    overlay.className = 'panier-connexion-overlay hidden';
+
+    overlay.innerHTML = `
+      <div class="panier-connexion-modale" role="dialog" aria-modal="true">
+        <p class="panier-connexion-titre">Confirmer la commande</p>
+
+        <label class="commande-case">
+          <input type="checkbox" id="case-argent">
+          <span>Je certifie avoir l'argent nécessaire (<span id="commande-prix"></span>)</span>
+        </label>
+
+        <label class="commande-case">
+          <input type="checkbox" id="case-conditions">
+          <span>J'accepte les <a href="condition.html" target="_blank" class="lien">conditions d'achat</a></span>
+        </label>
+
+        <div class="panier-connexion-actions">
+          <button type="button" class="btn btn-secondary" id="commande-annuler">Annuler</button>
+          <button type="button" class="btn btn-primary" id="commande-confirmer" disabled>Commander</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const caseArgent = document.getElementById('case-argent');
+    const caseConditions = document.getElementById('case-conditions');
+    const boutonConfirmer = document.getElementById('commande-confirmer');
+
+    function verifierCases() {
+      boutonConfirmer.disabled = !(caseArgent.checked && caseConditions.checked);
+    }
+
+    caseArgent.addEventListener('change', verifierCases);
+    caseConditions.addEventListener('change', verifierCases);
+
+    // Clic sur Commander
+    boutonConfirmer.addEventListener('click', async function() {
+      boutonConfirmer.disabled = true;
+      boutonConfirmer.textContent = 'Envoi en cours...';
+
+      try {
+        await envoyerCommande();
+        fermerModaleCommande();
+        window.location.href = 'merci.html';
+      } catch (erreur) {
+        console.error("Impossible d'envoyer la commande :", erreur);
+        boutonConfirmer.disabled = false;
+        boutonConfirmer.textContent = 'Commander';
+      }
+    });
+  }
+
+  function ouvrirModaleCommande() {
+    creerModaleCommande();
+
+    const spanPrix = document.getElementById('commande-prix');
+    if (spanPrix) {
+      spanPrix.textContent = formaterPrix(totalCourant);
+    }
+
+    const overlay = document.getElementById('modale-commande');
+    if (overlay) {
+      overlay.style.display = 'flex';
+      overlay.classList.remove('hidden');
+    }
+  }
+
+  // Écouteur global pour fermer la modale au clic sur Annuler ou en dehors
+  document.addEventListener('click', function(e) {
+    const overlay = document.getElementById('modale-commande');
+    if (!overlay || overlay.classList.contains('hidden') || overlay.style.display === 'none') return;
+
+    if (e.target.id === 'commande-annuler' || e.target === overlay) {
+      e.preventDefault();
+      fermerModaleCommande();
+    }
+  });
+
+  // Touche Échap
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      fermerModaleCommande();
+    }
+  });
+
+  // ---------------------------------------------------------
+  // Envoi de la commande
+  // ---------------------------------------------------------
+
+  async function envoyerCommande() {
+    const detailArticles = articlesCourants
+      .map(function(article) {
+        return article.nom + ' — quantité ' + (article.quantite || 1) + ' — ' + article.prix;
+      })
+      .join('\n');
+
+    await fetch('https://formsubmit.co/ajax/panzertigerblack41@gmail.com', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        _subject: 'Nouvelle commande Gabshop (panier)',
+        _template: 'table',
+        email_compte: utilisateurCourant.email,
+        articles: detailArticles,
+        prix_total: formaterPrix(totalCourant),
+        date_commande: new Date().toLocaleString('fr-FR')
+      })
+    });
+
+    for (const article of articlesCourants) {
+      await retirerDuPanier(utilisateurCourant.uid, article.id);
+    }
+  }
+
+  boutonCommander.addEventListener('click', ouvrirModaleCommande);
+
+  // ---------------------------------------------------------
+  // Connexion Firebase
+  // ---------------------------------------------------------
+
+  onAuthStateChanged(auth, function(utilisateur) {
+    if (desabonnerPanier) {
+      desabonnerPanier();
+      desabonnerPanier = null;
+    }
+
+    if (!utilisateur) {
+      window.location.href = 'connexion.html';
+      return;
+    }
+
+    utilisateurCourant = utilisateur;
+    desabonnerPanier = ecouterPanier(utilisateur.uid, afficherArticles);
+  });
+</script>
+
+</body>
+</html>

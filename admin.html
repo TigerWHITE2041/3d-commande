@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration — Mon Site</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<body>
+
+  <main class="account-page">
+    <div class="account-card portal-card">
+      <p class="account-eyebrow">Espace d'administration</p>
+      <h1>Administration</h1>
+      <p class="portal-description">
+        Tu veux administrer :
+      </p>
+
+      <div class="portal-actions">
+        <a href="admin-boutique.html" class="btn btn-primary">La boutique</a>
+        <a href="admin-comptes.html" class="btn btn-secondary">Les comptes</a>
+        <a href="admin-commande.html" class="btn btn-secondary">Les commandes persos</a>
+        <a href="admin-condition.html" class="btn btn-primary">Les conditions</a>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="./main.js"></script>
+  <script type="module">
+    import { protegerPage } from './main.js';
+
+    // Seuls les utilisateurs avec le rôle 'admin' peuvent accéder à cette page
+    protegerPage(['admin']);
+  </script>
+</body>
+</html>

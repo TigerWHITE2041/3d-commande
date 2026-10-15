@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gabshop - Produit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <p id="produit-chargement" class="account-intro">Chargement de l'article...</p>
+  <p id="produit-introuvable" class="account-intro hidden">
+    Cet article n'existe pas ou plus.
+    <a href="boutique.html">Retour à la boutique</a>
+  </p>
+
+  <section class="hero hidden" id="produit-hero">
+    <div class="hero-image-frame">
+      <button class="gallery-arrow gallery-prev" aria-label="Image précédente">
+        <span class="chevron chevron-left"></span>
+      </button>
+      <img id="gallery-img" src="" alt="">
+      <button class="gallery-arrow gallery-next" aria-label="Image suivante">
+        <span class="chevron chevron-right"></span>
+      </button>
+    </div>
+
+    <div class="hero-copy">
+      <h1 id="produit-nom"></h1>
+      <p class="description" id="produit-description"></p>
+      <p class="product-price" id="produit-prix"></p>
+      <div class="hero-actions">
+        <div class="quantite-selecteur">
+          <button type="button" class="quantite-bouton" data-quantite-moins aria-label="Diminuer la quantité">−</button>
+          <input type="number" class="quantite-champ" value="1" min="1" max="99" aria-label="Quantité">
+          <button type="button" class="quantite-bouton" data-quantite-plus aria-label="Augmenter la quantité">+</button>
+        </div>
+        <button class="btn btn-primary add-to-cart">Ajouter au panier</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="main.js"></script>
+<script type="module">
+  import { auth } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import { obtenirProduit, formaterPrixProduit, obtenirRoleUtilisateur } from './main.js';
+
+  const blocChargement = document.getElementById('produit-chargement');
+  const blocIntrouvable = document.getElementById('produit-introuvable');
+  const blocHero = document.getElementById('produit-hero');
+  const galleryImg = document.getElementById('gallery-img');
+
+  let images = [];
+  let indexActuel = 0;
+
+  function afficherImage(index) {
+    if (images.length === 0) return;
+    indexActuel = (index + images.length) % images.length;
+    galleryImg.src = images[indexActuel];
+  }
+
+  document.querySelector('.gallery-prev').addEventListener('click', function() {
+    afficherImage(indexActuel - 1);
+  });
+  document.querySelector('.gallery-next').addEventListener('click', function() {
+    afficherImage(indexActuel + 1);
+  });
+
+  const parametres = new URLSearchParams(window.location.search);
+  const idProduit = parametres.get('id');
+
+  async function charger() {
+
+    if (!idProduit) {
+      blocChargement.classList.add('hidden');
+      blocIntrouvable.classList.remove('hidden');
+      return;
+    }
+
+    try {
+
+      const produit = await obtenirProduit(idProduit);
+
+      blocChargement.classList.add('hidden');
+
+      if (!produit) {
+        blocIntrouvable.classList.remove('hidden');
+        return;
+      }
+
+      document.title = 'Gabshop - ' + produit.nom;
+
+      document.getElementById('produit-nom').textContent = produit.nom;
+      document.getElementById('produit-description').textContent = produit.description || '';
+      document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produit);
+
+      images = (produit.images && produit.images.length > 0)
+        ? produit.images
+        : ['japanDragon.png'];
+
+      galleryImg.alt = produit.nom;
+      afficherImage(0);
+
+      blocHero.classList.remove('hidden');
+
+    } catch (erreur) {
+
+      console.error("Impossible de charger l'article :", erreur);
+      blocChargement.classList.add('hidden');
+      blocIntrouvable.classList.remove('hidden');
+    }
+  }
+
+  // ...
+  onAuthStateChanged(auth, async function(utilisateur) {
+    const role = await obtenirRoleUtilisateur(utilisateur);
+    const produit = await obtenirProduit(idProduit);
+    
+    if (produit) {
+      document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produit, role);
+    }
+  });
+
+  charger();
+</script>
+
+</body>
+</html>

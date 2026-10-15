@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Inscription - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main class="account-page">
+
+  <section class="account-card">
+
+    <p class="account-eyebrow">GABSHOP</p>
+
+    <h1>Créer un compte</h1>
+
+    <p class="account-intro">
+      Crée ton compte pour retrouver facilement tes informations et tes commandes.
+      Après l'inscription, tu recevras un email de confirmation : clique sur le lien
+      qu'il contient, puis reviens te connecter pour activer ton compte.
+    </p>
+
+    <form id="inscription-form" class="account-form">
+
+      <div>
+        <label for="pseudo">Nom d'utilisateur</label>
+
+        <input
+          type="text"
+          id="pseudo"
+          name="pseudo"
+          autocomplete="username"
+          required
+          minlength="3"
+          maxlength="30"
+          placeholder="Ton nom d'utilisateur"
+        >
+      </div>
+
+      <div>
+        <label for="email">Adresse e-mail</label>
+
+        <input
+          type="email"
+          id="email"
+          name="email"
+          autocomplete="email"
+          required
+          placeholder="ton@email.com"
+        >
+      </div>
+
+      <div>
+        <label for="mot-de-passe">Mot de passe</label>
+
+        <input
+          type="password"
+          id="mot-de-passe"
+          name="mot-de-passe"
+          autocomplete="new-password"
+          required
+          minlength="6"
+          placeholder="Minimum 6 caractères"
+        >
+      </div>
+
+      <div>
+        <label for="confirmation-mot-de-passe">
+          Confirmer le mot de passe
+        </label>
+
+        <input
+          type="password"
+          id="confirmation-mot-de-passe"
+          name="confirmation-mot-de-passe"
+          autocomplete="new-password"
+          required
+          minlength="6"
+          placeholder="Retape ton mot de passe"
+        >
+      </div>
+
+      <div>
+        <label for="adresse">Adresse postale</label>
+
+        <input
+          type="text"
+          id="adresse"
+          name="adresse"
+          autocomplete="street-address"
+          required
+          minlength="5"
+          placeholder="Ton adresse complète"
+        >
+      </div>
+
+      <p
+        id="inscription-message"
+        class="form-error"
+        style="display: none;"
+      ></p>
+
+      <button type="submit" class="btn btn-primary">
+        Créer mon compte
+      </button>
+
+    </form>
+
+    <div class="account-separator">
+      <span>ou</span>
+    </div>
+
+    <div class="account-register">
+
+      <p>Tu as déjà un compte ?</p>
+
+      <a href="connexion.html" class="btn btn-secondary">
+        Se connecter
+      </a>
+
+    </div>
+
+  </section>
+
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  // =========================================================
+  // INSCRIPTION (Firebase Authentication)
+  // =========================================================
+
+  import { auth, authReady, db } from './firebase-config.js';
+  import {
+    createUserWithEmailAndPassword,
+    updateProfile,
+    sendEmailVerification,
+    signOut
+  } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    doc,
+    setDoc
+  } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js';
+
+
+  // ---------------------------------------------------------
+  // FormSubmit : notification envoyée à Gabriel à chaque
+  // inscription (même service que pour les commandes perso)
+  // ---------------------------------------------------------
+
+  // Envoie toutes les infos du compte SAUF le mot de passe.
+  // Note : la toute première fois qu'on envoie à cette adresse,
+  // FormSubmit envoie un email de confirmation à
+  // gabriel.gauthier@stjo41.fr qu'il faut valider une fois.
+  async function envoyerNotificationInscription(infos) {
+
+    try {
+
+      await fetch(
+        'https://formsubmit.co/ajax/gabriel.gauthier@stjo41.fr',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            _subject: 'Nouvelle inscription Gabshop',
+            _template: 'table',
+            pseudo: infos.pseudo,
+            email: infos.email,
+            adresse: infos.adresse,
+            date_creation: new Date().toLocaleString('fr-FR')
+          })
+        }
+      );
+
+    } catch (erreur) {
+
+      console.error(
+        "Impossible d'envoyer la notification d'inscription :",
+        erreur
+      );
+    }
+  }
+
+  const formulaireInscription =
+    document.getElementById('inscription-form');
+
+  const messageInscription =
+    document.getElementById('inscription-message');
+
+  const boutonInscription =
+    formulaireInscription.querySelector('button[type="submit"]');
+
+
+  // ---------------------------------------------------------
+  // Afficher un message (erreur en rouge, succès en vert)
+  // ---------------------------------------------------------
+
+  function afficherMessage(message, type) {
+
+    messageInscription.textContent = message;
+    messageInscription.classList.remove('form-error', 'form-success');
+    messageInscription.classList.add(type === 'succes' ? 'form-success' : 'form-error');
+    messageInscription.style.display = 'block';
+  }
+
+
+  // ---------------------------------------------------------
+  // Traduire les erreurs Firebase en messages compréhensibles
+  // ---------------------------------------------------------
+
+  function messageErreurFirebase(erreur) {
+
+    switch (erreur.code) {
+
+      case 'auth/email-already-in-use':
+        return "Cette adresse e-mail est déjà utilisée par un compte.";
+
+      case 'auth/invalid-email':
+        return "Adresse e-mail invalide.";
+
+      case 'auth/weak-password':
+        return "Le mot de passe doit contenir au moins 6 caractères.";
+
+      default:
+        return "Une erreur est survenue (" + erreur.code + "). Réessaie.";
+    }
+  }
+
+
+  // ---------------------------------------------------------
+  // Inscription
+  // ---------------------------------------------------------
+
+  formulaireInscription.addEventListener(
+    'submit',
+    async function(event) {
+
+      event.preventDefault();
+
+      messageInscription.style.display = 'none';
+
+
+      const pseudo =
+        document.getElementById('pseudo').value.trim();
+
+      const email =
+        document.getElementById('email').value.trim();
+
+      const motDePasse =
+        document.getElementById('mot-de-passe').value;
+
+      const confirmation =
+        document.getElementById(
+          'confirmation-mot-de-passe'
+        ).value;
+
+      const adresse =
+        document.getElementById('adresse').value.trim();
+
+
+      // -----------------------------------------------------
+      // Vérifications côté client (Firebase revérifie aussi)
+      // -----------------------------------------------------
+
+      if (pseudo.length < 3) {
+
+        afficherMessage(
+          "Le nom d'utilisateur doit contenir au moins 3 caractères."
+        );
+
+        return;
+      }
+
+
+      if (adresse.length < 5) {
+
+        afficherMessage(
+          "Merci d'indiquer une adresse postale valide."
+        );
+
+        return;
+      }
+
+
+      if (motDePasse !== confirmation) {
+
+        afficherMessage(
+          "Les deux mots de passe ne correspondent pas."
+        );
+
+        return;
+      }
+
+
+      boutonInscription.disabled = true;
+      boutonInscription.textContent = 'Création du compte...';
+
+
+      try {
+
+        // ---------------------------------------------------
+        // Création du compte via Firebase Authentication
+        // ---------------------------------------------------
+
+        await authReady;
+
+        const resultat =
+          await createUserWithEmailAndPassword(
+            auth,
+            email,
+            motDePasse
+          );
+
+        // Le pseudo est enregistré comme "nom affiché" du profil
+        await updateProfile(resultat.user, {
+          displayName: pseudo
+        });
+
+        // ---------------------------------------------------
+        // Création du document utilisateur dans Firestore
+        // ---------------------------------------------------
+
+        await setDoc(doc(db, 'utilisateurs', resultat.user.uid), {
+          email: email,
+          pseudo: pseudo,
+          adresse: adresse || '',
+          role: 'membre',
+          dateCreation: Date.now(),
+          derniereConnexion: Date.now(),
+          banJusqua: 0
+        });
+
+        // -----------------------------------------------------
+        // Notification à Gabriel : toutes les infos, sauf le
+        // mot de passe (ne bloque pas l'inscription en cas d'échec)
+        // -----------------------------------------------------
+
+        envoyerNotificationInscription({
+          pseudo,
+          email,
+          adresse
+        });
+
+        // -----------------------------------------------------
+        // Email de confirmation : on envoie le lien, puis on
+        // déconnecte l'utilisateur tant qu'il n'a pas confirmé
+        // -----------------------------------------------------
+
+        await sendEmailVerification(resultat.user);
+        await signOut(auth);
+
+        formulaireInscription.style.display = 'none';
+
+        afficherMessage(
+          'Compte créé ! Un email de confirmation a été envoyé à ' + email +
+          '. Clique sur le lien qu\'il contient (vérifie aussi tes spams), puis connecte-toi.',
+          'succes'
+        );
+
+      } catch (erreur) {
+
+        console.error(erreur);
+
+        afficherMessage(messageErreurFirebase(erreur));
+
+        boutonInscription.disabled = false;
+        boutonInscription.textContent = 'Créer mon compte';
+      }
+
+    }
+  );
+</script>
+
+</body>
+</html>

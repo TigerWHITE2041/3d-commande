@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion des comptes — Administration</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .comptes-grille {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .compte-card {
+      background: var(--bg-elevated, #f9f9f9);
+      border: 1px solid var(--border, #e0e0e0);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .compte-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .compte-titre {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .compte-infos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 8px;
+      font-size: 0.88rem;
+      color: var(--ink-soft, #555);
+      background: rgba(0, 0, 0, 0.02);
+      padding: 12px;
+      border-radius: 6px;
+    }
+
+    .compte-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .compte-actions select {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border, #ccc);
+      background: white;
+      font-size: 0.9rem;
+    }
+
+    .badge-banni {
+      display: inline-block;
+      background: #e53935;
+      color: white;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    /* Styles de la Modale de Détails */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-overlay.hidden {
+      display: none;
+    }
+
+    .modal-contenu {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border, #eee);
+      padding-bottom: 12px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+
+    .btn-fermer-modal {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+      color: var(--ink-soft, #666);
+    }
+
+    .modal-grille-details {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #eee;
+    }
+
+    .detail-item strong {
+      color: var(--ink-soft, #444);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main class="account-page">
+
+  <p id="admin-chargement" class="account-intro">Vérification des droits...</p>
+
+  <div id="admin-contenu" class="account-card hidden" style="max-width: 900px; width: 100%;">
+
+    <p class="account-eyebrow">ADMINISTRATION</p>
+    <h1>Gestion des comptes</h1>
+    <p class="account-intro">
+      Consulte les informations des utilisateurs, modifie leur rôle ou gère leurs accès (bannissements).
+    </p>
+
+    <section class="admin-section">
+      <div id="comptes-liste" class="comptes-grille"></div>
+    </section>
+
+    <div style="margin-top: 24px;">
+      <a href="admin.html" class="btn btn-secondary">← Retour à l'admin</a>
+    </div>
+
+  </div>
+
+</main>
+
+<!-- Modale d'affichage des détails du compte -->
+<div id="modal-details" class="modal-overlay hidden">
+  <div class="modal-contenu">
+    <div class="modal-header">
+      <h2>Détails du compte</h2>
+      <button type="button" class="btn-fermer-modal" id="btn-fermer-modal">&times;</button>
+    </div>
+    <div id="modal-body-details" class="modal-grille-details"></div>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+<script type="module">
+  import { auth } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    protegerPage,
+    ecouterComptes,
+    modifierRoleUtilisateur,
+    bannirUtilisateur,
+    debannirUtilisateur
+  } from './main.js';
+
+  // 1. Protection de la page
+  protegerPage(['admin']);
+
+  const blocChargement = document.getElementById('admin-chargement');
+  const blocContenu = document.getElementById('admin-contenu');
+
+  const modalDetails = document.getElementById('modal-details');
+  const modalBodyDetails = document.getElementById('modal-body-details');
+  const btnFermerModal = document.getElementById('btn-fermer-modal');
+
+  function echapperHTML(texte) {
+    const element = document.createElement('div');
+    element.textContent = texte || '';
+    return element.innerHTML;
+  }
+
+  // Fermeture de la modale
+  btnFermerModal.addEventListener('click', function() {
+    modalDetails.classList.add('hidden');
+  });
+
+  modalDetails.addEventListener('click', function(e) {
+    if (e.target === modalDetails) {
+      modalDetails.classList.add('hidden');
+    }
+  });
+
+  let listeComptesGlobale = [];
+  let intervalleTimer = null;
+
+  function afficherComptes(comptes) {
+    listeComptesGlobale = comptes;
+    const conteneur = document.getElementById('comptes-liste');
+
+    if (intervalleTimer) {
+        clearInterval(intervalleTimer);
+    }
+
+    if (comptes.length === 0) {
+        conteneur.innerHTML = '<p class="account-intro">Aucun compte enregistré pour le moment.</p>';
+        return;
+    }
+
+    conteneur.innerHTML = comptes.map(function(compte) {
+        const roleActuel = compte.role || 'membre';
+
+        return `
+        <div class="compte-card" id="compte-card-${echapperHTML(compte.id)}">
+            <div class="compte-header">
+              <span class="compte-titre">${echapperHTML(compte.pseudo || compte.email || compte.id)}</span>
+              <span class="badge-banni hidden" id="badge-ban-${echapperHTML(compte.id)}"></span>
+            </div>
+
+            <div class="compte-infos">
+              <div><strong>ID :</strong> ${echapperHTML(compte.id)}</div>
+              <div><strong>Email :</strong> ${echapperHTML(compte.email || 'Non renseigné')}</div>
+              <div><strong>Inscrit le :</strong> ${compte.dateCreation ? new Date(compte.dateCreation).toLocaleDateString('fr-FR') : 'Inconnue'}</div>
+              <div><strong>Dernière connexion :</strong> ${compte.derniereConnexion ? new Date(compte.derniereConnexion).toLocaleDateString('fr-FR') : 'Inconnue'}</div>
+            </div>
+
+            <div class="compte-actions" id="compte-actions-${echapperHTML(compte.id)}">
+              <button type="button" class="btn btn-secondary" data-voir-details="${echapperHTML(compte.id)}">Voir la fiche complète</button>
+              
+              <label><strong>Rôle :</strong></label>
+              <select data-role-id="${echapperHTML(compte.id)}">
+                  <option value="membre" ${roleActuel === 'membre' ? 'selected' : ''}>Membre</option>
+                  <option value="vip_gratuit" ${roleActuel === 'vip_gratuit' ? 'selected' : ''}>VIP (Gratuit)</option>
+                  <option value="vip_payant" ${roleActuel === 'vip_payant' ? 'selected' : ''}>VIP+ (Payant)</option>
+                  <option value="admin" ${roleActuel === 'admin' ? 'selected' : ''}>Admin</option>
+              </select>
+
+              <div class="zone-actions-ban"></div>
+            </div>
+        </div>
+        `;
+    }).join('');
+
+    function mettreAJourTimers() {
+        const maintenant = Date.now();
+
+        comptes.forEach(function(compte) {
+            const carte = document.getElementById(`compte-card-${compte.id}`);
+            if (!carte) return;
+
+            const badgeBan = carte.querySelector(`#badge-ban-${compte.id}`);
+            const zoneActions = carte.querySelector('.zone-actions-ban');
+            const estBanni = compte.banJusqua && compte.banJusqua > maintenant;
+
+            if (estBanni) {
+              badgeBan.style.display = 'inline-block';
+              badgeBan.classList.remove('hidden');
+
+              if (compte.banJusqua >= 32503680000000) {
+                  badgeBan.textContent = 'Banni définitivement';
+              } else {
+                  const tempsRestantMs = compte.banJusqua - maintenant;
+                  const secondesTotal = Math.floor(tempsRestantMs / 1000);
+                  const jours = Math.floor(secondesTotal / (3600 * 24));
+                  const heures = Math.floor((secondesTotal % (3600 * 24)) / 3600);
+                  const minutes = Math.floor((secondesTotal % 3600) / 60);
+                  const secondes = secondesTotal % 60;
+
+                  let resteFormatte = '';
+                  if (jours > 0) resteFormatte += `${jours}j `;
+                  resteFormatte += `${heures.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${secondes.toString().padStart(2, '0')}s`;
+
+                  badgeBan.textContent = `Banni — Reste : ${resteFormatte}`;
+              }
+
+              if (!zoneActions.querySelector('[data-debannir]')) {
+                  zoneActions.innerHTML = `<button type="button" class="btn btn-secondary" data-debannir="${echapperHTML(compte.id)}">Débannir</button>`;
+                  attacherEvenementDebannir(zoneActions);
+              }
+            } else {
+              badgeBan.style.display = 'none';
+              badgeBan.classList.add('hidden');
+              badgeBan.textContent = '';
+
+              if (!zoneActions.querySelector('[data-ban]')) {
+                  zoneActions.innerHTML = `
+                  <button type="button" class="btn btn-secondary" data-ban="${echapperHTML(compte.id)}" data-duree="1_semaine">Ban 1 sem.</button>
+                  <button type="button" class="btn btn-secondary" data-ban="${echapperHTML(compte.id)}" data-duree="1_mois">Ban 1 mois</button>
+                  <button type="button" class="btn btn-secondary" data-ban="${echapperHTML(compte.id)}" data-duree="permanent">Ban à vie</button>
+                  `;
+                  attacherEvenementBannir(zoneActions);
+              }
+            }
+        });
+    }
+
+    mettreAJourTimers();
+    intervalleTimer = setInterval(mettreAJourTimers, 1000);
+
+    // Événements pour ouvrir les détails
+    conteneur.querySelectorAll('[data-voir-details]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const uid = this.dataset.voirDetails;
+        ouvrirmFicheCompte(uid);
+      });
+    });
+
+    // Événements modification rôle
+    conteneur.querySelectorAll('select[data-role-id]').forEach(function(select) {
+        select.addEventListener('change', async function() {
+          const uid = this.dataset.roleId;
+          const nouveauRole = this.value;
+          try {
+              await modifierRoleUtilisateur(uid, nouveauRole);
+          } catch (erreur) {
+              console.error(erreur);
+              alert('Erreur lors du changement de rôle.');
+          }
+        });
+    });
+
+    function attacherEvenementBannir(parent) {
+        parent.querySelectorAll('[data-ban]').forEach(function(bouton) {
+          bouton.addEventListener('click', async function() {
+              const uid = this.dataset.ban;
+              const duree = this.dataset.duree;
+              if (!confirm('Confirmer le bannissement ?')) return;
+
+              try {
+                await bannirUtilisateur(uid, duree);
+              } catch (erreur) {
+                console.error(erreur);
+                alert('Erreur lors du bannissement.');
+              }
+          });
+        });
+    }
+
+    function attacherEvenementDebannir(parent) {
+        parent.querySelectorAll('[data-debannir]').forEach(function(bouton) {
+          bouton.addEventListener('click', async function() {
+              const uid = this.dataset.debannir;
+
+              try {
+                await debannirUtilisateur(uid);
+              } catch (erreur) {
+                console.error(erreur);
+                alert('Erreur lors du débannissement.');
+              }
+          });
+        });
+    }
+  }
+
+  function ouvrirmFicheCompte(uid) {
+    const compte = listeComptesGlobale.find(function(c) { return c.id === uid; });
+    if (!compte) return;
+
+    let html = '';
+    
+    // Parcours de toutes les propriétés disponibles du document
+    Object.keys(compte).forEach(function(cle) {
+      // Exclusions explicites des mots de passe
+      if (cle.toLowerCase().includes('password') || cle.toLowerCase().includes('motdepasse')) {
+        return;
+      }
+
+      let valeur = compte[cle];
+
+      // Formater la valeur selon son type
+      if (valeur === null || valeur === undefined) {
+        valeur = '<em>Non renseigné</em>';
+      } else if (typeof valeur === 'boolean') {
+        valeur = valeur ? 'Oui' : 'Non';
+      } else if (typeof valeur === 'object') {
+        valeur = `<pre style="margin:0; white-space:pre-wrap;">${echapperHTML(JSON.stringify(valeur, null, 2))}</pre>`;
+      } else if (
+        typeof valeur === 'number' && 
+        (cle.toLowerCase().includes('date') || cle.toLowerCase().includes('connexion') || cle.toLowerCase().includes('ban'))
+      ) {
+        // Traitement du ban définitif ou conversion en date lisible
+        if (cle === 'banJusqua' && valeur >= 32503680000000) {
+          valeur = 'Banni définitivement';
+        } else {
+          valeur = new Date(valeur).toLocaleString('fr-FR');
+        }
+      } else {
+        valeur = echapperHTML(String(valeur));
+      }
+
+      html += `
+        <div class="detail-item">
+          <strong>${echapperHTML(cle)}</strong>
+          <div>${valeur}</div>
+        </div>
+      `;
+    });
+
+    modalBodyDetails.innerHTML = html;
+    modalDetails.classList.remove('hidden');
+  }
+  function demarrerEcoute() {
+    ecouterComptes(function(comptes) {
+      afficherComptes(comptes);
+    });
+  }
+
+  // 3. Lancement au suivi de connexion
+  onAuthStateChanged(auth, function(utilisateur) {
+    if (utilisateur) {
+      blocChargement.classList.add('hidden');
+      blocContenu.classList.remove('hidden');
+      demarrerEcoute();
+    }
+  });
+</script>
+
+</body>
+</html>

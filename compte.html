@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Mon compte - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main class="account-page">
+
+  <section class="account-card" style="max-width: 560px;">
+
+    <p class="account-eyebrow">GABSHOP</p>
+
+    <h1>Mon compte</h1>
+
+    <p id="compte-chargement" class="account-intro">
+      Chargement de tes informations...
+    </p>
+
+    <div id="compte-infos" class="hidden">
+
+      <!-- ================================================= -->
+      <!-- INFORMATIONS DU COMPTE -->
+      <!-- ================================================= -->
+
+      <dl class="compte-infos-liste">
+
+        <div class="compte-info-ligne">
+          <dt>Pseudo</dt>
+          <dd id="info-pseudo"></dd>
+        </div>
+
+        <div class="compte-info-ligne">
+          <dt>Adresse email</dt>
+          <dd id="info-email"></dd>
+        </div>
+
+        <div class="compte-info-ligne">
+          <dt>Email confirmé</dt>
+          <dd id="info-email-verifie"></dd>
+        </div>
+
+        <div class="compte-info-ligne">
+          <dt>Statut</dt>
+          <dd id="info-role"></dd>
+        </div>
+
+        <div class="compte-info-ligne">
+          <dt>Compte créé le</dt>
+          <dd id="info-date-creation"></dd>
+        </div>
+
+        <div class="compte-info-ligne">
+          <dt>Dernière connexion</dt>
+          <dd id="info-derniere-connexion"></dd>
+        </div>
+
+      </dl>
+
+
+      <!-- ================================================= -->
+      <!-- CHANGER LE PSEUDO -->
+      <!-- ================================================= -->
+
+      <div class="account-separator"><span>Modifier</span></div>
+
+      <form id="pseudo-form" class="account-form">
+
+        <div>
+          <label for="nouveau-pseudo">Nom d'utilisateur</label>
+
+          <input
+            type="text"
+            id="nouveau-pseudo"
+            minlength="3"
+            maxlength="30"
+            required
+          >
+        </div>
+
+        <p id="pseudo-message" class="form-error" style="display: none;"></p>
+
+        <button type="submit" class="btn btn-primary">
+          Enregistrer le pseudo
+        </button>
+
+      </form>
+
+
+      <!-- ================================================= -->
+      <!-- SÉCURITÉ -->
+      <!-- ================================================= -->
+
+      <div class="account-separator"><span>Sécurité</span></div>
+
+      <button
+        type="button"
+        id="bouton-changer-mdp"
+        class="btn btn-secondary"
+        style="width: 100%;"
+      >
+        Recevoir un email pour changer mon mot de passe
+      </button>
+
+      <p id="mdp-message" class="form-error" style="display: none;"></p>
+
+
+      <!-- ================================================= -->
+      <!-- DÉCONNEXION -->
+      <!-- ================================================= -->
+
+      <div class="account-separator"><span>&nbsp;</span></div>
+
+      <button
+        type="button"
+        id="bouton-deconnexion-compte"
+        class="btn btn-secondary"
+        style="width: 100%;"
+      >
+        Se déconnecter
+      </button>
+
+    </div>
+
+  </section>
+
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  // =========================================================
+  // MON COMPTE
+  // =========================================================
+
+  import { auth, authReady } from './firebase-config.js';
+  import {
+    onAuthStateChanged,
+    updateProfile,
+    sendPasswordResetEmail,
+    signOut
+  } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+
+  import {
+    obtenirRoleUtilisateur,
+    obtenirInformationsRole
+  } from './main.js';
+
+
+  const blocChargement =
+    document.getElementById('compte-chargement');
+
+  const blocInfos =
+    document.getElementById('compte-infos');
+
+
+  // ---------------------------------------------------------
+  // Formater une date Firebase (ex: "Mon, 22 Sep 2026 ...")
+  // en date lisible en français
+  // ---------------------------------------------------------
+
+  function formaterDate(dateTexte) {
+
+    if (!dateTexte) return '—';
+
+    const date = new Date(dateTexte);
+
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
+
+
+  // ---------------------------------------------------------
+  // Afficher un message (erreur en rouge, succès en vert)
+  // ---------------------------------------------------------
+
+  function afficherMessage(element, message, succes) {
+
+    element.textContent = message;
+    element.classList.remove('form-error', 'form-success');
+    element.classList.add(succes ? 'form-success' : 'form-error');
+    element.style.display = 'block';
+  }
+
+
+  // ---------------------------------------------------------
+  // Surveiller la connexion : accès réservé aux comptes connectés
+  // ---------------------------------------------------------
+
+  onAuthStateChanged(auth, function(utilisateur) {
+
+    if (!utilisateur) {
+
+      window.location.href = 'connexion.html';
+      return;
+    }
+
+    blocChargement.classList.add('hidden');
+    blocInfos.classList.remove('hidden');
+
+    const role = obtenirRoleUtilisateur(utilisateur);
+    const infoRole = obtenirInformationsRole(role);
+
+    const pseudo =
+      utilisateur.displayName || '(non défini)';
+
+    document.getElementById('info-pseudo').textContent = pseudo;
+    document.getElementById('info-email').textContent = utilisateur.email;
+
+    document.getElementById('info-email-verifie').textContent =
+      utilisateur.emailVerified ? 'Oui' : 'Non';
+
+    document.getElementById('info-role').textContent =
+      (infoRole.symbole + ' ' + infoRole.nom).trim();
+
+    document.getElementById('info-date-creation').textContent =
+      formaterDate(utilisateur.metadata.creationTime);
+
+    document.getElementById('info-derniere-connexion').textContent =
+      formaterDate(utilisateur.metadata.lastSignInTime);
+
+    document.getElementById('nouveau-pseudo').value =
+      utilisateur.displayName || '';
+  });
+
+
+  // ---------------------------------------------------------
+  // Changer le pseudo
+  // ---------------------------------------------------------
+
+  document.getElementById('pseudo-form').addEventListener(
+    'submit',
+    async function(event) {
+
+      event.preventDefault();
+
+      const messagePseudo =
+        document.getElementById('pseudo-message');
+
+      messagePseudo.style.display = 'none';
+
+      const nouveauPseudo =
+        document.getElementById('nouveau-pseudo').value.trim();
+
+      if (nouveauPseudo.length < 3) {
+
+        afficherMessage(
+          messagePseudo,
+          "Le nom d'utilisateur doit contenir au moins 3 caractères.",
+          false
+        );
+
+        return;
+      }
+
+      try {
+
+        await authReady;
+
+        await updateProfile(auth.currentUser, {
+          displayName: nouveauPseudo
+        });
+
+        document.getElementById('info-pseudo').textContent = nouveauPseudo;
+
+        afficherMessage(messagePseudo, 'Pseudo mis à jour !', true);
+
+      } catch (erreur) {
+
+        console.error(erreur);
+
+        afficherMessage(
+          messagePseudo,
+          "Impossible de mettre à jour le pseudo pour le moment.",
+          false
+        );
+      }
+    }
+  );
+
+
+  // ---------------------------------------------------------
+  // Changer le mot de passe (via email de réinitialisation)
+  // ---------------------------------------------------------
+
+  document.getElementById('bouton-changer-mdp').addEventListener(
+    'click',
+    async function() {
+
+      const bouton = this;
+
+      const messageMdp =
+        document.getElementById('mdp-message');
+
+      messageMdp.style.display = 'none';
+
+      bouton.disabled = true;
+      bouton.textContent = 'Envoi en cours...';
+
+      try {
+
+        await authReady;
+
+        await sendPasswordResetEmail(auth, auth.currentUser.email);
+
+        afficherMessage(
+          messageMdp,
+          "Un email pour changer ton mot de passe vient de t'être envoyé. Vérifie ta boîte mail (et tes spams).",
+          true
+        );
+
+      } catch (erreur) {
+
+        console.error(erreur);
+
+        afficherMessage(
+          messageMdp,
+          "Impossible d'envoyer l'email pour le moment. Réessaie plus tard.",
+          false
+        );
+
+      } finally {
+
+        bouton.disabled = false;
+        bouton.textContent = 'Recevoir un email pour changer mon mot de passe';
+      }
+    }
+  );
+
+
+  // ---------------------------------------------------------
+  // Déconnexion
+  // ---------------------------------------------------------
+
+  document.getElementById('bouton-deconnexion-compte').addEventListener(
+    'click',
+    async function() {
+
+      await signOut(auth);
+      window.location.href = 'connexion.html';
+    }
+  );
+</script>
+
+</body>
+</html>

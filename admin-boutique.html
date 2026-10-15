@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Administration - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .collections-lignes-liste {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .collection-ligne-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collection-ligne-item .custom-select {
+      flex: 1;
+    }
+    .btn-icon {
+      padding: 8px 12px;
+      font-size: 1.1rem;
+      line-height: 1;
+      border-radius: 4px;
+      flex: none !important;
+      width: auto !important;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--color-subdued, #666);
+      text-decoration: none;
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+      transition: color 0.2s ease;
+    }
+    .back-link:hover {
+      color: var(--color-primary, #000);
+    }
+    /* Surcharge pour forcer l'input de fichier à prendre toute la largeur */
+    .article-fichiers-input {
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+
+  <p id="admin-chargement" class="account-intro">Vérification des droits...</p>
+
+  <div id="admin-contenu" class="hidden">
+
+    <p class="account-eyebrow">GABSHOP</p>
+    <h1>Administration</h1>
+
+    <!-- IMPORT DES ARTICLES EXISTANTS (une fois) -->
+    <section class="admin-section">
+      <h2>Import initial</h2>
+      <p class="account-intro">
+        Si tes 5 articles d'origine (Dragon japonais, Cube infini, Pistolet 1/2/3)
+        ne sont pas encore dans la liste ci-dessous, clique ici pour les importer.
+        Cliquer plusieurs fois ne crée pas de doublons.
+      </p>
+      <button type="button" id="bouton-import" class="btn btn-secondary">
+        Importer les 5 articles existants
+      </button>
+      <p id="import-message" class="form-error" style="display:none;"></p>
+    </section>
+
+    <!-- ARTICLES -->
+    <section class="admin-section">
+      <h2>Articles</h2>
+
+      <div id="admin-articles-liste"></div>
+
+      <button type="button" id="bouton-nouvel-article" class="btn btn-primary">
+        + Ajouter un article
+      </button>
+
+      <form id="article-form" class="account-form admin-form hidden">
+
+        <input type="hidden" id="article-id-en-cours">
+
+        <div>
+          <label for="article-nom">Nom</label>
+          <input type="text" id="article-nom" required>
+        </div>
+
+        <div>
+          <label for="article-description">Description</label>
+          <textarea id="article-description" rows="3"></textarea>
+        </div>
+
+        <div>
+          <label for="article-prix-base">Prix de base (€)</label>
+          <input type="number" id="article-prix-base" min="0" step="0.01" required>
+        </div>
+
+        <div>
+          <label for="article-taxes">Taxes (€)</label>
+          <input type="number" id="article-taxes" min="0" step="0.01" value="0.40" required>
+        </div>
+
+        <div>
+          <label>Images (formats acceptés : PNG, JPEG, WebP, GIF, SVG, etc.)</label>
+          
+          <!-- Conteneur avec le premier input directement présent dans le HTML -->
+          <div id="images-lignes-conteneur" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+            <div class="ligne-input-fichier" style="display: flex; align-items: center; gap: 8px;">
+              <input type="file" class="article-fichiers-input" accept="image/*" multiple style="flex: 1 1 auto; width: 100%; min-width: 0;" />
+              <button type="button" class="btn btn-secondary btn-icon bouton-ajouter-champ-image" title="Ajouter un autre champ" style="flex: none;">+</button>
+            </div>
+          </div>
+
+          <!-- Aperçu des images déjà existantes -->
+          <div id="apercu-images-existantes" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;"></div>
+        </div>
+
+        <div>
+          <label>Onglets Collections (optionnel)</label>
+          <div id="collections-lignes-conteneur" class="collections-lignes-liste"></div>
+        </div>
+
+        <p id="article-message" class="form-error" style="display:none;"></p>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button>
+          <button type="button" id="bouton-annuler-article" class="btn btn-secondary" style="flex:1;">Annuler</button>
+        </div>
+
+      </form>
+    </section>
+
+    <!-- ONGLETS COLLECTIONS -->
+    <section class="admin-section">
+      <h2>Onglets "Collections" du menu</h2>
+
+      <div id="admin-collections-liste"></div>
+
+      <form id="collection-form" class="account-form admin-form">
+
+        <div>
+          <label for="collection-label">Nom du nouvel onglet</label>
+          <input type="text" id="collection-label" placeholder="Ex : Nouveautés 2026" required>
+        </div>
+
+        <p id="collection-message" class="form-error" style="display:none;"></p>
+
+        <button type="submit" class="btn btn-primary">+ Ajouter l'onglet</button>
+
+      </form>
+    </section>
+
+    <div style="margin-top: 24px;">
+      <a href="admin.html" class="btn btn-secondary">← Retour à l'administration</a>
+    </div>
+
+  </div>
+
+</main>
+
+<script type="module" src="main.js"></script>
+<script type="module">
+  import { auth, authReady } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    obtenirRoleUtilisateur,
+    ecouterProduits,
+    ajouterProduit,
+    modifierProduit,
+    supprimerProduit,
+    obtenirCollections,
+    ajouterCollection,
+    modifierCollection,
+    supprimerCollection,
+    convertirFichierEnBase64,
+    formaterPrixProduit,
+    importerProduitAvecId
+  } from './main.js';
+
+  const blocChargement = document.getElementById('admin-chargement');
+  const blocContenu = document.getElementById('admin-contenu');
+
+  function echapperHTML(texte) {
+    const element = document.createElement('div');
+    element.textContent = texte || '';
+    return element.innerHTML;
+  }
+
+  // Accès réservé aux administrateurs
+  onAuthStateChanged(auth, async function(utilisateur) {
+    if (!utilisateur) {
+      window.location.href = 'connexion.html';
+      return;
+    }
+
+    const role = await obtenirRoleUtilisateur(utilisateur);
+
+    if (role !== 'admin') {
+      window.location.href = 'boutique.html';
+      return;
+    }
+
+    blocChargement.classList.add('hidden');
+    blocContenu.classList.remove('hidden');
+
+    demarrer();
+  });
+
+  // Import initial
+  const ARTICLES_ORIGINAUX = [
+    {
+      id: 'dragon-japonais',
+      nom: 'Dragon japonais',
+      description: 'Un dragon articulé dans un style japonais.',
+      prixBase: 24.90,
+      taxes: 0.40,
+      images: ['japanDragon.png', 'japanDragon-2.png', 'japanDragon-3.png']
+    },
+    {
+      id: 'cube-infini',
+      nom: 'Cube infini',
+      description: "Un cube qui tourne à l'infini de manière satisfaisante.",
+      prixBase: 2.50,
+      taxes: 0.40,
+      images: ['Cube-infini-1.jpg', 'Cube-infini-2.jpg']
+    },
+    {
+      id: 'pistolet-1',
+      nom: 'Pistolet 1',
+      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
+      prixBase: 2.00,
+      taxes: 0.40,
+      images: ['Pistolet-de-base-1.jpg', 'Pistolet-de-base-2.jpg']
+    },
+    {
+      id: 'pistolet-2',
+      nom: 'Pistolet 2',
+      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
+      prixBase: 1.50,
+      taxes: 0.40,
+      images: ['Pistolet-mieux-1.jpg', 'Pistolet-mieux-2.jpg']
+    },
+    {
+      id: 'pistolet-3',
+      nom: 'Pistolet 3',
+      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
+      prixBase: 2.50,
+      taxes: 0.40,
+      images: ['Pistolet-rouge-1.jpg', 'Pistolet-rouge-2.jpg']
+    }
+  ];
+
+  document.getElementById('bouton-import').addEventListener('click', async function() {
+    const bouton = this;
+    const message = document.getElementById('import-message');
+
+    bouton.disabled = true;
+    bouton.textContent = 'Import en cours...';
+
+    try {
+      for (const article of ARTICLES_ORIGINAUX) {
+        const { id, ...donnees } = article;
+        await importerProduitAvecId(id, donnees);
+      }
+      message.style.display = 'none';
+      alert('Les 5 articles ont été importés (ou mis à jour si déjà présents).');
+    } catch (erreur) {
+      console.error(erreur);
+      message.textContent = "Erreur lors de l'import : " + erreur.message;
+      message.style.display = 'block';
+    } finally {
+      bouton.disabled = false;
+      bouton.textContent = 'Importer les 5 articles existants';
+    }
+  });
+
+  // Articles
+  let produitsActuels = [];
+  let collectionsActuelles = [];
+  let collectionsSelectionnees = [''];
+  let imagesActuellesEnCours = [];
+
+  function demarrer() {
+    ecouterProduits(function(produits) {
+      produitsActuels = produits;
+      afficherArticles();
+    });
+    chargerCollections();
+    initialiserGestionChampsImages();
+  }
+
+  function afficherArticles() {
+    const conteneur = document.getElementById('admin-articles-liste');
+
+    if (produitsActuels.length === 0) {
+      conteneur.innerHTML = '<p class="account-intro">Aucun article pour le moment.</p>';
+      return;
+    }
+
+    conteneur.innerHTML = produitsActuels.map(function(produit) {
+      return `
+        <div class="admin-ligne">
+          <img src="${echapperHTML((produit.images && produit.images[0]) || '')}" class="admin-ligne-image" alt="">
+          <div class="admin-ligne-info">
+            <strong>${echapperHTML(produit.nom)}</strong>
+            <span>${formaterPrixProduit(produit)}</span>
+          </div>
+          <div class="admin-ligne-actions">
+            <button type="button" class="btn btn-secondary" data-modifier="${echapperHTML(produit.id)}">Modifier</button>
+            <button type="button" class="btn btn-secondary" data-supprimer="${echapperHTML(produit.id)}">Supprimer</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    conteneur.querySelectorAll('[data-modifier]').forEach(function(bouton) {
+      bouton.addEventListener('click', function() {
+        ouvrirFormulaireArticle(bouton.dataset.modifier);
+      });
+    });
+
+    conteneur.querySelectorAll('[data-supprimer]').forEach(function(bouton) {
+      bouton.addEventListener('click', async function() {
+        if (!confirm('Supprimer définitivement cet article ?')) return;
+        try {
+          await supprimerProduit(bouton.dataset.supprimer);
+        } catch (erreur) {
+          console.error(erreur);
+          alert("Impossible de supprimer l'article.");
+        }
+      });
+    });
+  }
+
+  const formulaireArticle = document.getElementById('article-form');
+  const messageArticle = document.getElementById('article-message');
+
+  document.getElementById('bouton-nouvel-article').addEventListener('click', function() {
+    ouvrirFormulaireArticle(null);
+  });
+
+  document.getElementById('bouton-annuler-article').addEventListener('click', function() {
+    formulaireArticle.classList.add('hidden');
+  });
+
+  // GESTION DYNAMIQUE DES CHAMPS D'UPLOAD D'IMAGES
+  function initialiserGestionChampsImages() {
+    const premierBoutonPlus = document.querySelector('.bouton-ajouter-champ-image');
+    if (premierBoutonPlus) {
+      premierBoutonPlus.addEventListener('click', ajouterNouveauChampImage);
+    }
+  }
+
+  function ajouterNouveauChampImage() {
+    const conteneur = document.getElementById('images-lignes-conteneur');
+    const ligne = document.createElement('div');
+    ligne.className = 'ligne-input-fichier';
+    ligne.style.display = 'flex';
+    ligne.style.alignItems = 'center';
+    ligne.style.gap = '8px';
+
+    ligne.innerHTML = `
+      <input type="file" class="article-fichiers-input" accept="image/*" multiple style="flex: 1 1 auto; width: 100%; min-width: 0;" />
+      <button type="button" class="btn btn-secondary btn-icon bouton-supprimer-champ-image" title="Retirer ce champ" style="flex: none;">−</button>
+    `;
+
+    ligne.querySelector('.bouton-supprimer-champ-image').addEventListener('click', function() {
+      ligne.remove();
+    });
+
+    conteneur.appendChild(ligne);
+  }
+
+  function reinitialiserChampsImages() {
+    const conteneur = document.getElementById('images-lignes-conteneur');
+    conteneur.innerHTML = `
+      <div class="ligne-input-fichier" style="display: flex; align-items: center; gap: 8px;">
+        <input type="file" class="article-fichiers-input" accept="image/*" multiple style="flex: 1 1 auto; width: 100%; min-width: 0;" />
+        <button type="button" class="btn btn-secondary btn-icon bouton-ajouter-champ-image" title="Ajouter un autre champ" style="flex: none;">+</button>
+      </div>
+    `;
+    initialiserGestionChampsImages();
+  }
+
+  // GESTION DYNAMIQUE MULTI-COLLECTIONS
+  document.addEventListener('click', function(event) {
+    if (!event.target.closest('.custom-select')) {
+      document.querySelectorAll('.custom-select-options.open').forEach(function(el) {
+        el.classList.remove('open');
+      });
+      document.querySelectorAll('.custom-select-toggle[aria-expanded="true"]').forEach(function(el) {
+        el.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+
+  function afficherLignesCollections() {
+    const conteneur = document.getElementById('collections-lignes-conteneur');
+    conteneur.innerHTML = '';
+
+    collectionsSelectionnees.forEach(function(valeurActive, index) {
+      const ligne = document.createElement('div');
+      ligne.className = 'collection-ligne-item';
+
+      const collectionObj = collectionsActuelles.find(function(c) { return c.id === valeurActive; });
+      const labelTxt = collectionObj ? collectionObj.label : 'Aucun (visible seulement dans "Tout voir")';
+
+      let optionsHTML = `<li data-value="" class="${!valeurActive ? 'selected' : ''}">Aucun (visible seulement dans "Tout voir")</li>`;
+      optionsHTML += collectionsActuelles.map(function(c) {
+        const isSelected = valeurActive === c.id ? 'selected' : '';
+        return `<li data-value="${echapperHTML(c.id)}" class="${isSelected}">${echapperHTML(c.label)}</li>`;
+      }).join('');
+
+      ligne.innerHTML = `
+        <input type="hidden" class="collection-valeur-hidden" value="${echapperHTML(valeurActive)}">
+        <div class="custom-select">
+          <button type="button" class="custom-select-toggle" aria-expanded="false">
+            <span>${echapperHTML(labelTxt)}</span>
+            <svg class="caret" viewBox="0 0 10 10" fill="none">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <ul class="custom-select-options" role="listbox">${optionsHTML}</ul>
+        </div>
+        ${index === 0
+          ? `<button type="button" class="btn btn-secondary btn-icon bouton-ajouter-collection" title="Ajouter un autre onglet">+</button>`
+          : `<button type="button" class="btn btn-secondary btn-icon bouton-supprimer-collection" data-index="${index}" title="Retirer cet onglet">−</button>`
+        }
+      `;
+
+      const toggleBtn = ligne.querySelector('.custom-select-toggle');
+      const optionsUl = ligne.querySelector('.custom-select-options');
+      const labelSpan = toggleBtn.querySelector('span');
+      const hiddenInp = ligne.querySelector('.collection-valeur-hidden');
+
+      toggleBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const isOpen = optionsUl.classList.toggle('open');
+        toggleBtn.setAttribute('aria-expanded', String(isOpen));
+      });
+
+      optionsUl.querySelectorAll('li').forEach(function(li) {
+        li.addEventListener('click', function() {
+          const val = this.dataset.value;
+          hiddenInp.value = val;
+          labelSpan.textContent = this.textContent;
+          collectionsSelectionnees[index] = val;
+
+          optionsUl.querySelectorAll('li').forEach(function(l) { l.classList.remove('selected'); });
+          this.classList.add('selected');
+
+          optionsUl.classList.remove('open');
+          toggleBtn.setAttribute('aria-expanded', 'false');
+        });
+      });
+
+      conteneur.appendChild(ligne);
+    });
+
+    const btnAjouter = conteneur.querySelector('.bouton-ajouter-collection');
+    if (btnAjouter) {
+      btnAjouter.addEventListener('click', function() {
+        collectionsSelectionnees.push('');
+        afficherLignesCollections();
+      });
+    }
+
+    conteneur.querySelectorAll('.bouton-supprimer-collection').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index, 10);
+        collectionsSelectionnees.splice(idx, 1);
+        afficherLignesCollections();
+      });
+    });
+  }
+
+  function ouvrirFormulaireArticle(id) {
+    messageArticle.style.display = 'none';
+
+    const produit = id
+      ? produitsActuels.find(function(p) { return p.id === id; })
+      : null;
+
+    document.getElementById('article-id-en-cours').value = id || '';
+    document.getElementById('article-nom').value = produit ? produit.nom : '';
+    document.getElementById('article-description').value = produit ? (produit.description || '') : '';
+    document.getElementById('article-prix-base').value = produit ? produit.prixBase : '';
+    document.getElementById('article-taxes').value = produit ? produit.taxes : 0.40;
+
+    reinitialiserChampsImages();
+
+    imagesActuellesEnCours = produit && produit.images ? [...produit.images] : [];
+    afficherApercuImagesExistantes();
+
+    if (produit && produit.collections && Array.isArray(produit.collections) && produit.collections.length > 0) {
+      collectionsSelectionnees = produit.collections.slice();
+    } else if (produit && produit.collection) {
+      collectionsSelectionnees = [produit.collection];
+    } else {
+      collectionsSelectionnees = [''];
+    }
+
+    afficherLignesCollections();
+
+    formulaireArticle.classList.remove('hidden');
+    formulaireArticle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function afficherApercuImagesExistantes() {
+    const conteneur = document.getElementById('apercu-images-existantes');
+    if (!conteneur) return;
+
+    conteneur.innerHTML = imagesActuellesEnCours.map((url, index) => `
+      <div style="position:relative; display:inline-block;">
+        <img src="${echapperHTML(url)}" style="width:60px; height:60px; object-fit:cover; border-radius:4px; border:1px solid var(--line);">
+        <button type="button" data-supprimer-img="${index}" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:12px; line-height:1;">×</button>
+      </div>
+    `).join('');
+
+    conteneur.querySelectorAll('[data-supprimer-img]').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.supprimerImg, 10);
+        imagesActuellesEnCours.splice(idx, 1);
+        afficherApercuImagesExistantes();
+      });
+    });
+  }
+
+  formulaireArticle.addEventListener('submit', async function(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('article-id-en-cours').value;
+
+    const inputsFichiers = document.querySelectorAll('.article-fichiers-input');
+    let nouveauxFichiers = [];
+
+    inputsFichiers.forEach(input => {
+      if (input.files && input.files.length > 0) {
+        nouveauxFichiers = nouveauxFichiers.concat(Array.from(input.files));
+      }
+    });
+
+    const collectionsFiltrees = collectionsSelectionnees
+      .map(function(c) { return c.trim(); })
+      .filter(Boolean);
+
+    const collectionsFinales = Array.from(new Set(collectionsFiltrees));
+    const boutonSubmit = formulaireArticle.querySelector('button[type="submit"]');
+
+    try {
+      boutonSubmit.disabled = true;
+      boutonSubmit.textContent = 'Enregistrement...';
+
+      // Conversion des fichiers locaux en Base64 au lieu d'utiliser Storage
+      let nouvellesUrlsBase64 = [];
+      if (nouveauxFichiers.length > 0) {
+        nouvellesUrlsBase64 = await Promise.all(
+          nouveauxFichiers.map(fichier => convertirFichierEnBase64(fichier))
+        );
+      }
+
+      const toutesLesImages = [...imagesActuellesEnCours, ...nouvellesUrlsBase64];
+
+      const donnees = {
+        nom: document.getElementById('article-nom').value.trim(),
+        description: document.getElementById('article-description').value.trim(),
+        prixBase: parseFloat(document.getElementById('article-prix-base').value) || 0,
+        taxes: parseFloat(document.getElementById('article-taxes').value) || 0,
+        images: toutesLesImages,
+        collections: collectionsFinales
+      };
+
+      if (!donnees.nom) {
+        messageArticle.textContent = 'Le nom est obligatoire.';
+        messageArticle.style.display = 'block';
+        boutonSubmit.disabled = false;
+        boutonSubmit.textContent = 'Enregistrer';
+        return;
+      }
+
+      if (id) {
+        await modifierProduit(id, donnees);
+      } else {
+        await ajouterProduit(donnees);
+      }
+
+      formulaireArticle.classList.add('hidden');
+
+    } catch (erreur) {
+      console.error(erreur);
+      messageArticle.textContent = "Impossible d'enregistrer l'article : " + erreur.message;
+      messageArticle.style.display = 'block';
+    } finally {
+      boutonSubmit.disabled = false;
+      boutonSubmit.textContent = 'Enregistrer';
+    }
+  });
+
+  // Onglets Collections
+  async function chargerCollections() {
+    try {
+      collectionsActuelles = await obtenirCollections();
+      afficherCollections();
+      afficherLignesCollections();
+    } catch (erreur) {
+      console.error('Impossible de charger les collections :', erreur);
+    }
+  }
+
+  function afficherCollections() {
+    const conteneur = document.getElementById('admin-collections-liste');
+
+    if (collectionsActuelles.length === 0) {
+      conteneur.innerHTML = '<p class="account-intro">Aucun onglet pour le moment.</p>';
+      return;
+    }
+
+    conteneur.innerHTML = collectionsActuelles.map(function(c) {
+      return `
+        <div class="admin-ligne">
+          <div class="admin-ligne-info">
+            <strong>${echapperHTML(c.label)}</strong>
+          </div>
+          <div class="admin-ligne-actions">
+            <button type="button" class="btn btn-secondary" data-renommer="${echapperHTML(c.id)}">Renommer</button>
+            <button type="button" class="btn btn-secondary" data-supprimer-collection="${echapperHTML(c.id)}">Supprimer</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    conteneur.querySelectorAll('[data-renommer]').forEach(function(bouton) {
+      bouton.addEventListener('click', async function() {
+        const actuel = collectionsActuelles.find(function(c) { return c.id === bouton.dataset.renommer; });
+        const nouveauLabel = prompt('Nouveau nom de cet onglet :', actuel ? actuel.label : '');
+
+        if (!nouveauLabel || !nouveauLabel.trim()) return;
+
+        try {
+          await modifierCollection(bouton.dataset.renommer, { label: nouveauLabel.trim() });
+          await chargerCollections();
+        } catch (erreur) {
+          console.error(erreur);
+          alert("Impossible de renommer l'onglet.");
+        }
+      });
+    });
+
+    conteneur.querySelectorAll('[data-supprimer-collection]').forEach(function(bouton) {
+      bouton.addEventListener('click', async function() {
+        if (!confirm('Supprimer cet onglet ? Les articles qui y sont rattachés resteront visibles dans "Tout voir".')) return;
+
+        try {
+          await supprimerCollection(bouton.dataset.supprimerCollection);
+          await chargerCollections();
+        } catch (erreur) {
+          console.error(erreur);
+          alert("Impossible de supprimer l'onglet.");
+        }
+      });
+    });
+  }
+
+  document.getElementById('collection-form').addEventListener('submit', async function(event) {
+    event.preventDefault();
+
+    const messageCollection = document.getElementById('collection-message');
+    const champLabel = document.getElementById('collection-label');
+    const label = champLabel.value.trim();
+
+    if (!label) return;
+
+    try {
+      const ordre = collectionsActuelles.length > 0
+        ? Math.max.apply(null, collectionsActuelles.map(function(c) { return c.ordre || 0; })) + 1
+        : 1;
+
+      await ajouterCollection({ label, ordre });
+
+      champLabel.value = '';
+      messageCollection.style.display = 'none';
+
+      await chargerCollections();
+
+    } catch (erreur) {
+      console.error(erreur);
+      messageCollection.textContent = "Impossible d'ajouter cet onglet.";
+      messageCollection.style.display = 'block';
+    }
+  });
+</script>
+
+</body>
+</html>

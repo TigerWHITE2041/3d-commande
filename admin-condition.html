@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modifier les conditions - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .condition-edition-item {
+      background: var(--bg-elevated);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <p id="admin-chargement" class="account-intro">Vérification des droits...</p>
+
+  <div id="admin-contenu" class="hidden">
+    <p class="account-eyebrow">GABSHOP ADMIN</p>
+    <h1>Modifier les conditions d'utilisation</h1>
+
+    <form id="form-conditions" class="admin-form" style="max-width: 800px;">
+      <div id="conteneur-sections"></div>
+
+      <button type="button" id="btn-ajouter-section" class="btn btn-secondary" style="margin-bottom: 20px;">
+        + Ajouter une section
+      </button>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+        <a href="admin.html" class="btn btn-secondary">← Retour à l'administration</a>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  import { auth, authReady } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    obtenirRoleUtilisateur,
+    obtenirConditions,
+    enregistrerConditions
+  } from './main.js';
+
+  const blocChargement = document.getElementById('admin-chargement');
+  const blocContenu = document.getElementById('admin-contenu');
+  const conteneurSections = document.getElementById('conteneur-sections');
+
+  // Conditions par défaut si Firestore est vide au premier lancement
+  const SECTIONS_PAR_DEFAUT = [
+    { titre: "1. Objet", contenu: "Les présentes conditions d'utilisation encadrent l'accès et l'utilisation du site Gabshop ainsi que les services proposés par celui-ci.\nEn utilisant le site, en créant un compte ou en passant une commande, l'utilisateur reconnaît avoir pris connaissance des présentes conditions." },
+    { titre: "2. Utilisation du site", contenu: "L'utilisateur s'engage à utiliser le site de manière normale, légale et respectueuse.\n- Ne pas tenter de perturber le fonctionnement du site.\n- Ne pas utiliser le site à des fins frauduleuses.\n- Ne pas tenter d'accéder aux comptes ou aux données d'autres utilisateurs.\n- Fournir des informations exactes lors de la création d'un compte ou d'une commande." },
+    { titre: "3. Compte utilisateur", contenu: "Certaines fonctionnalités du site nécessitent la création d'un compte utilisateur.\nL'utilisateur est responsable des informations associées à son compte et doit conserver ses identifiants confidentiels.\nEn cas d'utilisation non autorisée de son compte, l'utilisateur doit prendre les mesures nécessaires pour sécuriser celui-ci." },
+    { titre: "4. Commandes", contenu: "Une commande peut être effectuée depuis la boutique ou depuis les fonctionnalités de commande proposées sur le site.\nAvant de confirmer une commande, l'utilisateur doit vérifier les informations affichées, notamment les produits, les quantités et le montant total." },
+    { titre: "5. Confirmation d'une commande", contenu: "Lors de la confirmation d'une commande, l'utilisateur doit confirmer qu'il dispose des moyens nécessaires au paiement ainsi qu'accepter les conditions d'achat.\nLa validation de ces éléments permet de confirmer que l'utilisateur souhaite poursuivre sa commande." },
+    { titre: "6. Prix et paiement", contenu: "Les prix affichés sur le site sont indiqués en euros (€), sauf indication contraire.\nLe montant affiché lors de la validation de la commande correspond au montant à prendre en compte pour celle-ci." },
+    { titre: "7. Propriété intellectuelle", contenu: "Les éléments présents sur Gabshop, notamment les textes, visuels, logos, éléments graphiques et contenus originaux, peuvent être protégés par les règles relatives à la propriété intellectuelle.\nToute reproduction ou utilisation non autorisée de ces éléments peut être interdite." },
+    { titre: "8. Responsabilité", contenu: "Gabshop s'efforce de maintenir le site accessible et fonctionnel, mais ne peut garantir une disponibilité permanente ou l'absence totale d'erreurs.\nL'utilisateur reste responsable de l'utilisation qu'il fait du site et des informations qu'il fournit." },
+    { titre: "9. Modification des conditions", contenu: "Les présentes conditions peuvent être modifiées afin de tenir compte de l'évolution du site, de ses fonctionnalités ou des règles applicables.\nLa version publiée sur cette page est la version applicable au moment de l'utilisation du site." },
+    { titre: "10. Contact", contenu: "Pour toute question concernant les présentes conditions, l'utilisation du site ou une commande, l'utilisateur peut contacter Gabshop depuis la page de contact." }
+  ];
+
+  let sectionsActuelles = [];
+
+  await authReady;
+
+  onAuthStateChanged(auth, async function(utilisateur) {
+    if (!utilisateur) {
+      window.location.href = 'connexion.html';
+      return;
+    }
+
+    const role = await obtenirRoleUtilisateur(utilisateur);
+    if (role !== 'admin') {
+      window.location.href = 'condition.html';
+      return;
+    }
+
+    blocChargement.classList.add('hidden');
+    blocContenu.classList.remove('hidden');
+
+    const enregistrees = await obtenirConditions();
+    sectionsActuelles = enregistrees || SECTIONS_PAR_DEFAUT;
+    afficherFormulaireSections();
+  });
+
+  function afficherFormulaireSections() {
+    conteneurSections.innerHTML = '';
+
+    sectionsActuelles.forEach(function(sec, index) {
+      const div = document.createElement('div');
+      div.className = 'condition-edition-item';
+
+      div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong>Section ${index + 1}</strong>
+          <button type="button" class="btn btn-secondary btn-supprimer-sec" data-index="${index}">Supprimer</button>
+        </div>
+        <div>
+          <label>Titre de la section</label>
+          <input type="text" class="champ-titre" value="${sec.titre}" required>
+        </div>
+        <div>
+          <label>Texte de la section (saute une ligne pour créer un nouveau paragraphe)</label>
+          <textarea class="champ-contenu" rows="5" required>${sec.contenu}</textarea>
+        </div>
+      `;
+
+      conteneurSections.appendChild(div);
+    });
+
+    // Supprimer une section
+    conteneurSections.querySelectorAll('.btn-supprimer-sec').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index, 10);
+        sectionsActuelles.splice(idx, 1);
+        afficherFormulaireSections();
+      });
+    });
+  }
+
+  // Ajouter une section
+  document.getElementById('btn-ajouter-section').addEventListener('click', function() {
+    sectionsActuelles.push({ titre: `${sectionsActuelles.length + 1}. Nouvelle section`, contenu: '' });
+    afficherFormulaireSections();
+  });
+
+  // Enregistrer dans Firestore
+  document.getElementById('form-conditions').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const items = conteneurSections.querySelectorAll('.condition-edition-item');
+    const nouvellesSections = [];
+
+    items.forEach(item => {
+      nouvellesSections.push({
+        titre: item.querySelector('.champ-titre').value.trim(),
+        contenu: item.querySelector('.champ-contenu').value.trim()
+      });
+    });
+
+    const btnSubmit = e.target.querySelector('button[type="submit"]');
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Enregistrement...';
+
+    try {
+      await enregistrerConditions(nouvellesSections);
+      alert('Les conditions d\'utilisation ont été mises à jour !');
+      window.location.href = 'condition.html';
+    } catch (erreur) {
+      console.error(erreur);
+      alert('Impossible d\'enregistrer les modifications.');
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Enregistrer les modifications';
+    }
+  });
+</script>
+
+</body>
+</html>
