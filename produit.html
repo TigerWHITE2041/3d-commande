@@ -47,18 +47,57 @@
       </div>
     </div>
   </section>
+
+  <!-- Section Commentaires et Étoiles -->
+  <section class="reviews-section hidden" id="produit-reviews">
+    <h2>Avis sur cet article</h2>
+
+    <!-- Formulaire d'Avis (Visible uniquement si l'utilisateur est connecté) -->
+    <div id="form-yaada-box" class="review-form hidden">
+      <h3>Laissez votre avis et votre note</h3>
+      <form id="form-yaada">
+        <div class="star-rating">
+          <input type="radio" id="star5" name="rating" value="5" /><label for="star5" title="5 étoiles">★</label>
+          <input type="radio" id="star4" name="rating" value="4" /><label for="star4" title="4 étoiles">★</label>
+          <input type="radio" id="star3" name="rating" value="3" /><label for="star3" title="3 étoiles">★</label>
+          <input type="radio" id="star2" name="rating" value="2" /><label for="star2" title="2 étoiles">★</label>
+          <input type="radio" id="star1" name="rating" value="1" /><label for="star1" title="1 étoile">★</label>
+        </div>
+        <textarea id="yaada-text" placeholder="Écrivez votre commentaire ici..." required></textarea>
+        <button type="submit" class="btn btn-primary">Envoyer l'avis</button>
+      </form>
+    </div>
+
+    <div id="seensa-ergaa" class="account-intro">
+      Vous devez être <a href="portail-compte.html">connecté</a> pour laisser un avis.
+    </div>
+
+    <!-- Liste des avis -->
+    <div id="tarree-yaadawwanii" class="reviews-list">
+      <p>Chargement des avis...</p>
+    </div>
+  </section>
 </main>
 
 <script type="module" src="main.js"></script>
 <script type="module">
-  import { auth } from './firebase-config.js';
+  import { db, auth } from './firebase-config.js';
   import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import { 
+    collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp 
+  } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js';
   import { obtenirProduit, formaterPrixProduit, obtenirRoleUtilisateur } from './main.js';
 
   const blocChargement = document.getElementById('produit-chargement');
   const blocIntrouvable = document.getElementById('produit-introuvable');
   const blocHero = document.getElementById('produit-hero');
   const galleryImg = document.getElementById('gallery-img');
+
+  const formYaadaBox = document.getElementById('form-yaada-box');
+  const seensaErgaa = document.getElementById('seensa-ergaa');
+  const reviewsSection = document.getElementById('produit-reviews');
+  const tarreeYaadawwanii = document.getElementById('tarree-yaadawwanii');
+  const formYaada = document.getElementById('form-yaada');
 
   let images = [];
   let indexActuel = 0;
@@ -80,7 +119,6 @@
   const idProduit = parametres.get('id');
 
   async function charger() {
-
     if (!idProduit) {
       blocChargement.classList.add('hidden');
       blocIntrouvable.classList.remove('hidden');
@@ -88,7 +126,6 @@
     }
 
     try {
-
       const produit = await obtenirProduit(idProduit);
 
       blocChargement.classList.add('hidden');
@@ -114,20 +151,93 @@
       blocHero.classList.remove('hidden');
 
     } catch (erreur) {
-
       console.error("Impossible de charger l'article :", erreur);
       blocChargement.classList.add('hidden');
       blocIntrouvable.classList.remove('hidden');
     }
   }
 
-  // ...
+  // Charger les avis depuis Firestore en temps réel
+  function chargerAvis(idProduit) {
+    const q = query(
+      collection(db, 'avis'),
+      where('produitId', '==', idProduit),
+      orderBy('date', 'desc')
+    );
+
+    onSnapshot(q, (snapshot) => {
+      tarreeYaadawwanii.innerHTML = '';
+      if (snapshot.empty) {
+        tarreeYaadawwanii.innerHTML = '<p>Aucun avis pour cet article pour le moment.</p>';
+        return;
+      }
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const etoiles = '★'.repeat(data.note) + '☆'.repeat(5 - data.note);
+        
+        const item = document.createElement('div');
+        item.className = 'review-card';
+        item.innerHTML = `
+          <div class="review-header">
+            <strong>${data.pseudo || 'Utilisateur'}</strong>
+            <span class="stars">${etoiles}</span>
+          </div>
+          <p class="review-text">${data.commentaire}</p>
+        `;
+        tarreeYaadawwanii.appendChild(item);
+      });
+    }, (erreur) => {
+      console.error("Erreur lors de la récupération des avis :", erreur);
+    });
+  }
+
+  // Suivi de l'état de connexion de l'utilisateur
   onAuthStateChanged(auth, async function(utilisateur) {
     const role = await obtenirRoleUtilisateur(utilisateur);
     const produit = await obtenirProduit(idProduit);
     
     if (produit) {
       document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produit, role);
+    }
+
+    if (idProduit) {
+      reviewsSection.classList.remove('hidden');
+      chargerAvis(idProduit);
+
+      if (utilisateur) {
+        formYaadaBox.classList.remove('hidden');
+        seensaErgaa.classList.add('hidden');
+
+        // Soumission du formulaire d'avis
+        formYaada.onsubmit = async (e) => {
+          e.preventDefault();
+          const note = formYaada.querySelector('input[name="rating"]:checked')?.value;
+          const commentaire = document.getElementById('yaada-text').value;
+
+          if (!note) {
+            alert('Veuillez sélectionner une note avec les étoiles !');
+            return;
+          }
+
+          try {
+            await addDoc(collection(db, 'avis'), {
+              produitId: idProduit,
+              uid: utilisateur.uid,
+              pseudo: utilisateur.displayName || utilisateur.email.split('@')[0],
+              note: Number(note),
+              commentaire: commentaire,
+              date: serverTimestamp()
+            });
+            formYaada.reset();
+          } catch (err) {
+            console.error("Erreur lors de l'envoi de l'avis :", err);
+          }
+        };
+      } else {
+        formYaadaBox.classList.add('hidden');
+        seensaErgaa.classList.remove('hidden');
+      }
     }
   });
 
