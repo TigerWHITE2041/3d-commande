@@ -369,6 +369,78 @@ export async function supprimerCouleur(id) {
 
 
 // =========================================================
+// GESTION DES CONDITIONS (Firestore)
+// =========================================================
+
+export async function obtenirConditions() {
+  try {
+    const docSnap = await getDoc(doc(db, 'page_conditions', 'contenu'));
+    if (docSnap.exists()) {
+      return docSnap.data().sections || null;
+    }
+  } catch (e) {
+    console.error('Erreur lors de la récupération des conditions :', e);
+  }
+  return null;
+}
+
+export async function enregistrerConditions(sections) {
+  await setDoc(doc(db, 'page_conditions', 'contenu'), {
+    sections: sections,
+    derniereMiseAJour: new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  });
+}
+
+
+// =========================================================
+// GESTION ET AFFICHAGE DES PUBS LATÉRALES (Firestore)
+// =========================================================
+
+export async function obtenirPubs() {
+  try {
+    const docSnap = await getDoc(doc(db, 'pubs', 'bandeaux'));
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (e) {
+    console.error('Erreur lors de la récupération des pubs :', e);
+  }
+  return null;
+}
+
+export async function enregistrerPubs(donnees) {
+  await setDoc(doc(db, 'pubs', 'bandeaux'), donnees);
+}
+
+(async function afficherPubsLaterales() {
+  const pubs = await obtenirPubs();
+  if (!pubs) return;
+
+  document.querySelectorAll('.pub-laterale').forEach(el => el.remove());
+
+  if (pubs.imageGauche && pubs.imageGauche.trim() !== '') {
+    const pubGauche = document.createElement('div');
+    pubGauche.className = 'pub-laterale pub-gauche';
+    const imgHTML = `<img src="${pubs.imageGauche}" alt="Publicité">`;
+    pubGauche.innerHTML = pubs.lienGauche 
+      ? `<a href="${pubs.lienGauche}" target="_blank" rel="noopener">${imgHTML}</a>`
+      : imgHTML;
+    document.body.appendChild(pubGauche);
+  }
+
+  if (pubs.imageDroite && pubs.imageDroite.trim() !== '') {
+    const pubDroite = document.createElement('div');
+    pubDroite.className = 'pub-laterale pub-droite';
+    const imgHTML = `<img src="${pubs.imageDroite}" alt="Publicité">`;
+    pubDroite.innerHTML = pubs.lienDroit 
+      ? `<a href="${pubs.lienDroit}" target="_blank" rel="noopener">${imgHTML}</a>`
+      : imgHTML;
+    document.body.appendChild(pubDroite);
+  }
+})();
+
+
+// =========================================================
 // SYSTÈME DE RÔLES ET UTILISATEURS (Firestore)
 // =========================================================
 
@@ -436,7 +508,6 @@ async function afficherCompte(utilisateur) {
 
   const role = await obtenirRoleUtilisateur(utilisateur);
 
-  // Redirection VIP+ dynamique
   if (lienVipPlus) {
     lienVipPlus.href = (role === 'vip_payant') ? 'vip.html' : 'vip-plus.html';
   }
@@ -522,6 +593,80 @@ function echapperHTML(texte) {
 
 
 // =========================================================
+// EASTER EGG INVISIBLE (POSITION ALÉATOIRE PAR COMPTE, UNIQUE)
+// =========================================================
+
+function genererPositionDepuisUID(uid) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash << 5) - hash + uid.charCodeAt(i);
+    hash |= 0;
+  }
+
+  const absHash = Math.abs(hash);
+  const left = 10 + (absHash % 76);
+  const top = 15 + ((Math.floor(absHash / 100)) % 70);
+
+  return { top: top + 'vh', left: left + 'vw' };
+}
+
+async function initialiserEasterEgg(utilisateur) {
+  if (!utilisateur) return;
+
+  // Si l'utilisateur a déjà trouvé l'easter egg, on n'affiche pas la zone
+  const userDoc = await obtenirUtilisateurFirestore(utilisateur.uid);
+  if (userDoc && userDoc.easterEggTrouve === true) return;
+
+  // Calcul déterministe de la position
+  const pos = genererPositionDepuisUID(utilisateur.uid);
+
+  // Création du bouton invisible
+  const egg = document.createElement('button');
+  egg.type = 'button';
+  egg.className = 'easter-egg-zone';
+  egg.style.top = pos.top;
+  egg.style.left = pos.left;
+  egg.setAttribute('aria-label', '');
+
+  egg.addEventListener('click', async function() {
+    console.log("Easter egg trouvé !");
+
+    // 1. Définition de l'objet produit "Mini dragon" gratuit
+    const produitEasterEgg = {
+      id: 'mini-dragon-easter-egg',
+      nom: 'Mini dragon',
+      description: 'Un mini dragon stylé et mignon',
+      prix: '<strong>0,00 €</strong> <span class="price-detail">(0,00 € + taxes (0,00€))</span>',
+      prixBase: 0,
+      taxes: 0,
+      collections: ['nouveautes-2026'],
+      image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAakAAAFwCAYAAAACHYS8AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAP+lSURBVHhe7L15oGVFdS/8q6q9z7lTj0BDdzM0MwoIiOCcqIDzkGjiSzR5iVET9T3n5EWN74UYNZoY51nQmC8+Y+JziCIqiigqiowyjz3Q89x3OufsXVXr+2Otql17n3Nu324aEO0fln3uHmrXuFatVWutUqtXbydAQXkAUPAEKE8g5eGVh9MAAWhnOXTpYZ2FMQZeEQBAkYKGglIE0hZkgJ71yFQRyBAMAA0oDjIajEnmuoUhBOf4XGgC85AkoAEoZAB7WOxCAzBgQCIoArRVAGoqAsizhnIM2BgAZTKahNMF7C688SAGKNBRpwBNIaaSQqvBvANoDmgikCFZ7lJrgQTCkQDAgqPis8YC2D',
+      imageAlt: 'Mini dragon',
+      lien: 'boutique.html',
+      quantite: 1
+    };
+
+    try {
+      // 2. Ajout automatique de l'article dans le panier Firestore
+      await ajouterAuPanier(utilisateur.uid, produitEasterEgg);
+
+      // 3. Marquer l'easter egg comme trouvé pour cet utilisateur
+      await setDoc(doc(db, 'utilisateurs', utilisateur.uid), {
+        easterEggTrouve: true
+      }, { merge: true });
+
+      // 4. Retrait de l'élément du DOM
+      egg.remove();
+    } catch (e) {
+      console.error("Erreur lors du traitement de l'easter egg :", e);
+    }
+  });
+
+  document.body.appendChild(egg);
+}
+
+
+// =========================================================
 // SURVEILLER LA CONNEXION FIREBASE
 // =========================================================
 
@@ -534,6 +679,8 @@ onAuthStateChanged(auth, async function(utilisateur) {
   demarrerEcoutePanierHeader(utilisateur);
 
   if (utilisateur) {
+    initialiserEasterEgg(utilisateur);
+
     const userData = await obtenirUtilisateurFirestore(utilisateur.uid);
 
     // Contrôle du bannissement
@@ -832,7 +979,6 @@ export function protegerPage(rolesAutorises = []) {
 
     const userData = await obtenirUtilisateurFirestore(utilisateur.uid);
 
-    // Contrôle du bannissement
     if (userData?.banJusqua) {
       const maintenant = Date.now();
       const timestampBan = typeof userData.banJusqua === 'number'
@@ -848,7 +994,6 @@ export function protegerPage(rolesAutorises = []) {
       }
     }
 
-    // Contrôle des rôles
     const roleActuel = userData?.role || 'membre';
 
     if (rolesAutorises.length > 0 && !rolesAutorises.includes(roleActuel)) {
@@ -942,78 +1087,3 @@ export function formaterPrixCommande(prixMatiere, avecFichier = false) {
     `<span class="price-detail">(${euros(base)} + taxes (${taxes.toFixed(2).replace('.', ',')}€))</span>`
   );
 }
-
-// =========================================================
-// GESTION DES CONDITIONS (Firestore)
-// =========================================================
-
-export async function obtenirConditions() {
-  try {
-    const docSnap = await getDoc(doc(db, 'page_conditions', 'contenu'));
-    if (docSnap.exists()) {
-      return docSnap.data().sections || null;
-    }
-  } catch (e) {
-    console.error('Erreur lors de la récupération des conditions :', e);
-  }
-  return null;
-}
-
-export async function enregistrerConditions(sections) {
-  await setDoc(doc(db, 'page_conditions', 'contenu'), {
-    sections: sections,
-    derniereMiseAJour: new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-  });
-}
-
-// =========================================================
-// GESTION ET AFFICHAGE DES PUBS LATÉRALES (Firestore)
-// =========================================================
-
-export async function obtenirPubs() {
-  try {
-    const docSnap = await getDoc(doc(db, 'pubs', 'bandeaux'));
-    if (docSnap.exists()) {
-      return docSnap.data();
-    }
-  } catch (e) {
-    console.error('Erreur lors de la récupération des pubs :', e);
-  }
-  return null;
-}
-
-export async function enregistrerPubs(donnees) {
-  await setDoc(doc(db, 'pubs', 'bandeaux'), donnees);
-}
-
-// Injection automatique des pubs latérales sur toutes les pages
-(async function afficherPubsLaterales() {
-  const pubs = await obtenirPubs();
-  if (!pubs) return;
-
-  // Création du conteneur gauche
-  if (pubs.imageGauche) {
-    const pubGauche = document.createElement('div');
-    pubGauche.className = 'pub-laterale pub-gauche';
-    const contenuGauche = `
-      <img src="${pubs.imageGauche}" alt="Publicité">
-    `;
-    pubGauche.innerHTML = pubs.lienGauche 
-      ? `<a href="${pubs.lienGauche}" target="_blank" rel="noopener">${contenuGauche}</a>`
-      : contenuGauche;
-    document.body.appendChild(pubGauche);
-  }
-
-  // Création du conteneur droit
-  if (pubs.imageDroite) {
-    const pubDroite = document.createElement('div');
-    pubDroite.className = 'pub-laterale pub-droite';
-    const contenuDroit = `
-      <img src="${pubs.imageDroite}" alt="Publicité">
-    `;
-    pubDroite.innerHTML = pubs.lienDroit 
-      ? `<a href="${pubs.lienDroit}" target="_blank" rel="noopener">${contenuDroit}</a>`
-      : contenuDroit;
-    document.body.appendChild(pubDroite);
-  }
-})();
