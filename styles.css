@@ -288,6 +288,8 @@ main {
   max-width: 1160px;
   margin: 0 auto;
   padding: 72px 32px 100px;
+  position: relative;
+  z-index: 20; /* Garantit que le contenu reste au-dessus des bandeaux */
 }
 
 .hero {
@@ -1248,38 +1250,140 @@ a[href="panier.html"] {
   white-space: nowrap;
 }
 
-/* ---------- Publicités Latérales ---------- */
+/* ---------- Publicités Latérales Bords de Page ---------- */
 
 .pub-laterale {
   position: fixed;
-  top: 100px;
-  width: 140px;
-  max-height: calc(100vh - 120px);
-  z-index: 90;
+  top: 90px; /* Aligné sous la ligne du header */
+  bottom: 0;
+  width: 10%; /* Largeur de la bande latérale */
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: transparent;
 }
 
 .pub-gauche {
-  left: 12px;
+  left: 4%; /* Plaqué sur le bord gauche */
 }
 
 .pub-droite {
-  right: 12px;
+  right: 4%; /* Plaqué sur le bord droit */
+}
+
+.pub-laterale a {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
 }
 
 .pub-laterale img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover; /* Remplit tout le rectangle sans étirer l'image */
+  object-position: center; /* Zoome et centre sur le milieu de l'image */
   display: block;
-  object-fit: cover;
-  border-radius: 6px;
 }
 
-/* Masquer les publicités sur petit écran / mobile pour ne pas gêner la lecture */
+/* Masquer les publicités si l'écran est trop étroit pour ne pas chevaucher le contenu central */
 @media (max-width: 1400px) {
   .pub-laterale {
-    display: none;
+    display: none !important;
   }
+}
+
+/* ---------- Easter Egg Invisible ---------- */
+
+.easter-egg-zone {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  background-color: transparent; /* Totalement invisible peu importe le fond */
+  border-radius: 50%;
+  z-index: 9999 !important; /* Capte le clic au-dessus de tout le monde */
+  cursor: default;
+  user-select: none;
+  border: none;
+  outline: none;
+  padding: 0;
+  pointer-events: auto !important;
+}
+
+.easter-egg-zone:hover,
+.easter-egg-zone:focus,
+.easter-egg-zone:active {
+  background-color: transparent;
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* ---------- Section Avis et Étoiles ---------- */
+.reviews-section {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.review-form {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+}
+
+/* Sélection des étoiles */
+.star-rating {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+}
+
+.star-rating input {
+  display: none;
+}
+
+.star-rating label {
+  color: #ccc;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.star-rating input:checked ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+  color: #ffca28;
+}
+
+#yaada-text {
+  width: 100%;
+  height: 80px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.reviews-list .review-card {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border-left: 3px solid #ffca28;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.stars {
+  color: #ffca28;
 }
