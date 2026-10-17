@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Administration des commentaires — Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .admin-review-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line, #e2e8f0);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .admin-review-details {
+      flex: 1;
+    }
+    .admin-review-meta {
+      font-size: 0.85rem;
+      color: var(--color-subdued, #666);
+      margin-top: 4px;
+    }
+    .stars {
+      color: #ffca28;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+
+  <p id="admin-chargement" class="account-intro">Vérification des droits...</p>
+
+  <div id="admin-contenu" class="hidden">
+
+    <p class="account-eyebrow">GABSHOP</p>
+    <h1>Modération des commentaires</h1>
+    <p class="account-intro">Gère et modère tous les avis déposés sur les fiches produits.</p>
+
+    <section class="admin-section">
+      <h2>Tous les avis</h2>
+      <div id="liste-commentaires">
+        <p class="account-intro">Chargement des avis...</p>
+      </div>
+    </section>
+
+    <div style="margin-top: 24px;">
+      <a href="admin.html" class="btn btn-secondary">← Retour à l'administration</a>
+    </div>
+
+  </div>
+
+</main>
+
+<script type="module" src="main.js"></script>
+<script type="module">
+  import { db, auth } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js';
+  import { obtenirRoleUtilisateur, obtenirProduit } from './main.js';
+
+  const blocChargement = document.getElementById('admin-chargement');
+  const blocContenu = document.getElementById('admin-contenu');
+  const conteneurListe = document.getElementById('liste-commentaires');
+
+  function echapperHTML(texte) {
+    const element = document.createElement('div');
+    element.textContent = texte || '';
+    return element.innerHTML;
+  }
+
+  // Vérification de sécurité pour les administrateurs
+  onAuthStateChanged(auth, async function(utilisateur) {
+    if (!utilisateur) {
+      window.location.href = 'connexion.html';
+      return;
+    }
+
+    const role = await obtenirRoleUtilisateur(utilisateur);
+
+    if (role !== 'admin') {
+      window.location.href = 'boutique.html';
+      return;
+    }
+
+    blocChargement.classList.add('hidden');
+    blocContenu.classList.remove('hidden');
+    chargerTousLesCommentaires();
+  });
+
+  // Écoute en temps réel de tous les avis
+  function chargerTousLesCommentaires() {
+    const q = query(collection(db, 'avis'), orderBy('date', 'desc'));
+
+    onSnapshot(q, async (snapshot) => {
+      if (snapshot.empty) {
+        conteneurListe.innerHTML = '<p class="account-intro">Aucun commentaire pour le moment.</p>';
+        return;
+      }
+
+      conteneurListe.innerHTML = '';
+
+      for (const documentAvis of snapshot.docs) {
+        const data = documentAvis.data();
+        const idAvis = documentAvis.id;
+        const etoiles = '★'.repeat(data.note || 0) + '☆'.repeat(5 - (data.note || 0));
+
+        let nomProduit = data.produitId;
+        if (data.produitId) {
+          try {
+            const produit = await obtenirProduit(data.produitId);
+            if (produit && produit.nom) {
+              nomProduit = produit.nom;
+            }
+          } catch (e) {
+            console.error("Erreur chargement produit", e);
+          }
+        }
+
+        const dateFormatted = data.date && data.date.toDate 
+          ? data.date.toDate().toLocaleString('fr-FR') 
+          : 'Date inconnue';
+
+        const carte = document.createElement('div');
+        carte.className = 'admin-review-card';
+        carte.innerHTML = `
+          <div class="admin-review-details">
+            <div>
+              <strong>Article : ${echapperHTML(nomProduit)}</strong> — 
+              <span class="stars">${etoiles}</span>
+            </div>
+            <p style="margin: 8px 0 4px 0;">${echapperHTML(data.commentaire)}</p>
+            <div class="admin-review-meta">
+              Par <strong>${echapperHTML(data.pseudo || 'Anonyme')}</strong> le ${dateFormatted}
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-supprimer-avis="${idAvis}">
+            Supprimer
+          </button>
+        `;
+
+        carte.querySelector('[data-supprimer-avis]').addEventListener('click', async () => {
+          if (confirm('Voulez-vous vraiment supprimer définitivement cet avis ?')) {
+            try {
+              await deleteDoc(doc(db, 'avis', idAvis));
+            } catch (err) {
+              console.error("Erreur lors de la suppression :", err);
+              alert("Impossible de supprimer cet avis.");
+            }
+          }
+        });
+
+        conteneurListe.appendChild(carte);
+      }
+    }, (erreur) => {
+      console.error("Erreur chargement avis :", erreur);
+      conteneurListe.innerHTML = '<p class="account-intro">Erreur lors de la récupération des avis.</p>';
+    });
+  }
+</script>
+
+</body>
+</html>
