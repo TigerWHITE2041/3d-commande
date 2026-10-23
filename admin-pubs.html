@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration des publicités - Gabshop</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+  <div id="site-header"></div>
+</header>
+
+<main>
+  <p id="admin-chargement" class="account-intro">Vérification des droits...</p>
+
+  <div id="admin-contenu" class="hidden">
+    <p class="account-eyebrow">GABSHOP ADMIN</p>
+    <h1>Gestion des publicités latérales</h1>
+
+    <form id="form-pubs" class="account-form admin-form" style="max-width: 700px;">
+      
+      <!-- Publicité Gauche -->
+      <section class="admin-section">
+        <h2>Bannière Gauche (Verticale)</h2>
+        
+        <div>
+          <label>Image actuelle</label>
+          <div id="apercu-gauche" style="margin-bottom: 10px;">
+            <p class="price-detail">Aucune image configurée.</p>
+          </div>
+        </div>
+
+        <div>
+          <label for="input-img-gauche">Changer l'image (Format conseillé : Vertical, ex. 160x600)</label>
+          <input type="file" id="input-img-gauche" accept="image/*">
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label for="lien-gauche">Lien de la bannière (optionnel)</label>
+          <input type="url" id="lien-gauche" placeholder="https://...">
+        </div>
+      </section>
+
+      <!-- Publicité Droite -->
+      <section class="admin-section">
+        <h2>Bannière Droite (Verticale)</h2>
+        
+        <div>
+          <label>Image actuelle</label>
+          <div id="apercu-droite" style="margin-bottom: 10px;">
+            <p class="price-detail">Aucune image configurée.</p>
+          </div>
+        </div>
+
+        <div>
+          <label for="input-img-droite">Changer l'image (Format conseillé : Vertical, ex. 160x600)</label>
+          <input type="file" id="input-img-droite" accept="image/*">
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label for="lien-droit">Lien de la bannière (optionnel)</label>
+          <input type="url" id="lien-droit" placeholder="https://...">
+        </div>
+      </section>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary">Enregistrer les publicités</button>
+        <a href="admin.html" class="btn btn-secondary">← Retour à l'administration</a>
+      </div>
+
+    </form>
+  </div>
+</main>
+
+<script type="module" src="main.js"></script>
+
+<script type="module">
+  import { auth, authReady } from './firebase-config.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
+  import {
+    protegerPage,
+    obtenirPubs,
+    enregistrerPubs,
+    convertirFichierEnBase64
+  } from './main.js';
+
+  // Sécurisation de la page pour les administrateurs uniquement
+  protegerPage(['admin']);
+
+  const blocChargement = document.getElementById('admin-chargement');
+  const blocContenu = document.getElementById('admin-contenu');
+
+  let imageGaucheBase64 = null;
+  let imageDroiteBase64 = null;
+
+  await authReady;
+
+  onAuthStateChanged(auth, async function(utilisateur) {
+    if (!utilisateur) return;
+
+    blocChargement.classList.add('hidden');
+    blocContenu.classList.remove('hidden');
+
+    // Chargement des données actuelles
+    const donnees = await obtenirPubs();
+    if (donnees) {
+      if (donnees.imageGauche) {
+        imageGaucheBase64 = donnees.imageGauche;
+        document.getElementById('apercu-gauche').innerHTML = `<img src="${donnees.imageGauche}" style="max-width: 120px; border-radius: 4px; border: 1px solid var(--line);">`;
+      }
+      if (donnees.lienGauche) {
+        document.getElementById('lien-gauche').value = donnees.lienGauche;
+      }
+
+      if (donnees.imageDroite) {
+        imageDroiteBase64 = donnees.imageDroite;
+        document.getElementById('apercu-droite').innerHTML = `<img src="${donnees.imageDroite}" style="max-width: 120px; border-radius: 4px; border: 1px solid var(--line);">`;
+      }
+      if (donnees.lienDroit) {
+        document.getElementById('lien-droit').value = donnees.lienDroit;
+      }
+    }
+  });
+
+  document.getElementById('form-pubs').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fileGauche = document.getElementById('input-img-gauche').files[0];
+    const fileDroite = document.getElementById('input-img-droite').files[0];
+
+    const btnSubmit = e.target.querySelector('button[type="submit"]');
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Enregistrement...';
+
+    try {
+      if (fileGauche) {
+        imageGaucheBase64 = await convertirFichierEnBase64(fileGauche);
+      }
+      if (fileDroite) {
+        imageDroiteBase64 = await convertirFichierEnBase64(fileDroite);
+      }
+
+      await enregistrerPubs({
+        imageGauche: imageGaucheBase64 || '',
+        lienGauche: document.getElementById('lien-gauche').value.trim(),
+        imageDroite: imageDroiteBase64 || '',
+        lienDroit: document.getElementById('lien-droit').value.trim()
+      });
+
+      alert('Les publicités ont bien été mises à jour !');
+      window.location.reload();
+    } catch (erreur) {
+      console.error(erreur);
+      alert('Impossible de sauvegarder les publicités.');
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Enregistrer les publicités';
+    }
+  });
+</script>
+
+</body>
+</html>
