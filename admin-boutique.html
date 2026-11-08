@@ -16,15 +16,24 @@
 
   <link rel="stylesheet" href="styles.css">
   <style>
-    .collections-lignes-liste {
+    .collections-lignes-liste, .couleurs-produit-liste {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
       margin-top: 6px;
     }
     .collection-ligne-item {
       display: flex;
       align-items: center;
+      gap: 8px;
+    }
+    .couleur-produit-bloc {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
     }
     .collection-ligne-item .custom-select {
@@ -38,20 +47,6 @@
       flex: none !important;
       width: auto !important;
     }
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--color-subdued, #666);
-      text-decoration: none;
-      font-size: 0.95rem;
-      margin-bottom: 1.5rem;
-      transition: color 0.2s ease;
-    }
-    .back-link:hover {
-      color: var(--color-primary, #000);
-    }
-    /* Surcharge pour forcer l'input de fichier à prendre toute la largeur */
     .article-fichiers-input {
       flex: 1 1 auto !important;
       width: 100% !important;
@@ -75,14 +70,9 @@
     <p class="account-eyebrow">GABSHOP</p>
     <h1>Administration</h1>
 
-    <!-- IMPORT DES ARTICLES EXISTANTS (une fois) -->
+    <!-- IMPORT DES ARTICLES EXISTANTS -->
     <section class="admin-section">
       <h2>Import initial</h2>
-      <p class="account-intro">
-        Si tes 5 articles d'origine (Dragon japonais, Cube infini, Pistolet 1/2/3)
-        ne sont pas encore dans la liste ci-dessous, clique ici pour les importer.
-        Cliquer plusieurs fois ne crée pas de doublons.
-      </p>
       <button type="button" id="bouton-import" class="btn btn-secondary">
         Importer les 5 articles existants
       </button>
@@ -114,7 +104,7 @@
         </div>
 
         <div>
-          <label for="article-prix-base">Prix de base (€)</label>
+          <label for="article-prix-base">Prix de base par défaut (€)</label>
           <input type="number" id="article-prix-base" min="0" step="0.01" required>
         </div>
 
@@ -124,18 +114,21 @@
         </div>
 
         <div>
-          <label>Images (formats acceptés : PNG, JPEG, WebP, GIF, SVG, etc.)</label>
-          
-          <!-- Conteneur avec le premier input directement présent dans le HTML -->
+          <label>Images principales obligatoires * (Max 1 Mo par fichier)</label>
           <div id="images-lignes-conteneur" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
             <div class="ligne-input-fichier" style="display: flex; align-items: center; gap: 8px;">
               <input type="file" class="article-fichiers-input" accept="image/*" multiple style="flex: 1 1 auto; width: 100%; min-width: 0;" />
               <button type="button" class="btn btn-secondary btn-icon bouton-ajouter-champ-image" title="Ajouter un autre champ" style="flex: none;">+</button>
             </div>
           </div>
-
-          <!-- Aperçu des images déjà existantes -->
           <div id="apercu-images-existantes" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;"></div>
+        </div>
+
+        <!-- VARIANTES DE COULEURS -->
+        <div>
+          <label>Variantes de Couleurs (Optionnel - Nom, Prix et Image obligatoire si ajoutée)</label>
+          <div id="couleurs-produit-conteneur" class="couleurs-produit-liste"></div>
+          <button type="button" id="bouton-ajouter-variante-couleur" class="btn btn-secondary" style="margin-top: 8px;">+ Ajouter une couleur</button>
         </div>
 
         <div>
@@ -145,7 +138,7 @@
 
         <p id="article-message" class="form-error" style="display:none;"></p>
 
-        <div style="display:flex; gap:10px;">
+        <div style="display:flex; gap:10px; margin-top: 16px;">
           <button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button>
           <button type="button" id="bouton-annuler-article" class="btn btn-secondary" style="flex:1;">Annuler</button>
         </div>
@@ -156,20 +149,14 @@
     <!-- ONGLETS COLLECTIONS -->
     <section class="admin-section">
       <h2>Onglets "Collections" du menu</h2>
-
       <div id="admin-collections-liste"></div>
-
       <form id="collection-form" class="account-form admin-form">
-
         <div>
           <label for="collection-label">Nom du nouvel onglet</label>
           <input type="text" id="collection-label" placeholder="Ex : Nouveautés 2026" required>
         </div>
-
         <p id="collection-message" class="form-error" style="display:none;"></p>
-
         <button type="submit" class="btn btn-primary">+ Ajouter l'onglet</button>
-
       </form>
     </section>
 
@@ -183,7 +170,7 @@
 
 <script type="module" src="main.js"></script>
 <script type="module">
-  import { auth, authReady } from './firebase-config.js';
+  import { auth } from './firebase-config.js';
   import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js';
   import {
     obtenirRoleUtilisateur,
@@ -209,99 +196,29 @@
     return element.innerHTML;
   }
 
-  // Accès réservé aux administrateurs
   onAuthStateChanged(auth, async function(utilisateur) {
     if (!utilisateur) {
       window.location.href = 'connexion.html';
       return;
     }
-
     const role = await obtenirRoleUtilisateur(utilisateur);
-
     if (role !== 'admin') {
       window.location.href = 'boutique.html';
       return;
     }
-
     blocChargement.classList.add('hidden');
     blocContenu.classList.remove('hidden');
-
     demarrer();
   });
 
-  // Import initial
-  const ARTICLES_ORIGINAUX = [
-    {
-      id: 'dragon-japonais',
-      nom: 'Dragon japonais',
-      description: 'Un dragon articulé dans un style japonais.',
-      prixBase: 24.90,
-      taxes: 0.40,
-      images: ['japanDragon.png', 'japanDragon-2.png', 'japanDragon-3.png']
-    },
-    {
-      id: 'cube-infini',
-      nom: 'Cube infini',
-      description: "Un cube qui tourne à l'infini de manière satisfaisante.",
-      prixBase: 2.50,
-      taxes: 0.40,
-      images: ['Cube-infini-1.jpg', 'Cube-infini-2.jpg']
-    },
-    {
-      id: 'pistolet-1',
-      nom: 'Pistolet 1',
-      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
-      prixBase: 2.00,
-      taxes: 0.40,
-      images: ['Pistolet-de-base-1.jpg', 'Pistolet-de-base-2.jpg']
-    },
-    {
-      id: 'pistolet-2',
-      nom: 'Pistolet 2',
-      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
-      prixBase: 1.50,
-      taxes: 0.40,
-      images: ['Pistolet-mieux-1.jpg', 'Pistolet-mieux-2.jpg']
-    },
-    {
-      id: 'pistolet-3',
-      nom: 'Pistolet 3',
-      description: 'Un pistolet qui ne tire pas mais avec une culasse fonctionnelle.',
-      prixBase: 2.50,
-      taxes: 0.40,
-      images: ['Pistolet-rouge-1.jpg', 'Pistolet-rouge-2.jpg']
-    }
-  ];
-
-  document.getElementById('bouton-import').addEventListener('click', async function() {
-    const bouton = this;
-    const message = document.getElementById('import-message');
-
-    bouton.disabled = true;
-    bouton.textContent = 'Import en cours...';
-
-    try {
-      for (const article of ARTICLES_ORIGINAUX) {
-        const { id, ...donnees } = article;
-        await importerProduitAvecId(id, donnees);
-      }
-      message.style.display = 'none';
-      alert('Les 5 articles ont été importés (ou mis à jour si déjà présents).');
-    } catch (erreur) {
-      console.error(erreur);
-      message.textContent = "Erreur lors de l'import : " + erreur.message;
-      message.style.display = 'block';
-    } finally {
-      bouton.disabled = false;
-      bouton.textContent = 'Importer les 5 articles existants';
-    }
-  });
-
-  // Articles
   let produitsActuels = [];
   let collectionsActuelles = [];
   let collectionsSelectionnees = [''];
   let imagesActuellesEnCours = [];
+  let variantesCouleursActuelles = []; 
+
+  const TAILLE_MAX_FICHIER = 1024 * 1024; // 1 Mo
+  const TAILLE_MAX_TOTALE = 1024 * 1024;  // 1 Mo cumulé max pour Firestore
 
   function demarrer() {
     ecouterProduits(function(produits) {
@@ -314,16 +231,20 @@
 
   function afficherArticles() {
     const conteneur = document.getElementById('admin-articles-liste');
-
     if (produitsActuels.length === 0) {
       conteneur.innerHTML = '<p class="account-intro">Aucun article pour le moment.</p>';
       return;
     }
 
     conteneur.innerHTML = produitsActuels.map(function(produit) {
+      let imgSrc = (produit.images && produit.images[0]) || '';
+      if (produit.variantesCouleurs && produit.variantesCouleurs.length > 0 && produit.variantesCouleurs[0].images && produit.variantesCouleurs[0].images[0]) {
+        imgSrc = produit.variantesCouleurs[0].images[0];
+      }
+
       return `
         <div class="admin-ligne">
-          <img src="${echapperHTML((produit.images && produit.images[0]) || '')}" class="admin-ligne-image" alt="">
+          <img src="${echapperHTML(imgSrc)}" class="admin-ligne-image" alt="">
           <div class="admin-ligne-info">
             <strong>${echapperHTML(produit.nom)}</strong>
             <span>${formaterPrixProduit(produit)}</span>
@@ -366,7 +287,6 @@
     formulaireArticle.classList.add('hidden');
   });
 
-  // GESTION DYNAMIQUE DES CHAMPS D'UPLOAD D'IMAGES
   function initialiserGestionChampsImages() {
     const premierBoutonPlus = document.querySelector('.bouton-ajouter-champ-image');
     if (premierBoutonPlus) {
@@ -381,16 +301,13 @@
     ligne.style.display = 'flex';
     ligne.style.alignItems = 'center';
     ligne.style.gap = '8px';
-
     ligne.innerHTML = `
       <input type="file" class="article-fichiers-input" accept="image/*" multiple style="flex: 1 1 auto; width: 100%; min-width: 0;" />
       <button type="button" class="btn btn-secondary btn-icon bouton-supprimer-champ-image" title="Retirer ce champ" style="flex: none;">−</button>
     `;
-
     ligne.querySelector('.bouton-supprimer-champ-image').addEventListener('click', function() {
       ligne.remove();
     });
-
     conteneur.appendChild(ligne);
   }
 
@@ -405,16 +322,91 @@
     initialiserGestionChampsImages();
   }
 
-  // GESTION DYNAMIQUE MULTI-COLLECTIONS
-  document.addEventListener('click', function(event) {
-    if (!event.target.closest('.custom-select')) {
-      document.querySelectorAll('.custom-select-options.open').forEach(function(el) {
-        el.classList.remove('open');
+  function afficherLignesCouleursProduit() {
+    const conteneur = document.getElementById('couleurs-produit-conteneur');
+    conteneur.innerHTML = '';
+
+    variantesCouleursActuelles.forEach(function(variante, index) {
+      const bloc = document.createElement('div');
+      bloc.className = 'couleur-produit-bloc';
+
+      let apercuImgsHTML = '';
+      if (variante.images && variante.images.length > 0) {
+        apercuImgsHTML = variante.images.map((url, imgIdx) => `
+          <div style="position:relative; display:inline-block;">
+            <img src="${echapperHTML(url)}" style="width:45px; height:45px; object-fit:cover; border-radius:4px; border:1px solid var(--line);">
+            <button type="button" data-supprimer-img-couleur="${index}-${imgIdx}" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:16px; height:16px; cursor:pointer; font-size:10px;">×</button>
+          </div>
+        `).join('');
+      } else {
+        apercuImgsHTML = '<span style="font-size:0.85rem; color:#e53935; font-weight:500;">* Au moins 1 image obligatoire pour cette couleur</span>';
+      }
+
+      bloc.innerHTML = `
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" class="input-nom-couleur" placeholder="Nom couleur (ex: Rouge)*" value="${echapperHTML(variante.nom || '')}" style="flex: 2; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-elevated); color: var(--ink);">
+          <input type="number" class="input-prix-couleur" placeholder="Prix (€)*" min="0" step="0.01" value="${variante.prixBase !== undefined && variante.prixBase !== null ? variante.prixBase : ''}" style="flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-elevated); color: var(--ink);">
+          <button type="button" class="btn btn-secondary btn-icon bouton-supprimer-couleur" data-index="${index}" style="background: #e53935; color: white; border: none;">Supprimer</button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+          <input type="file" class="input-fichiers-couleur" accept="image/*" multiple style="font-size: 0.85rem; flex: 1;">
+        </div>
+        <div class="apercu-images-couleur" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
+          ${apercuImgsHTML}
+        </div>
+      `;
+
+      bloc.querySelector('.input-nom-couleur').addEventListener('input', function() {
+        variantesCouleursActuelles[index].nom = this.value;
       });
-      document.querySelectorAll('.custom-select-toggle[aria-expanded="true"]').forEach(function(el) {
-        el.setAttribute('aria-expanded', 'false');
+
+      bloc.querySelector('.input-prix-couleur').addEventListener('input', function() {
+        variantesCouleursActuelles[index].prixBase = this.value === '' ? null : parseFloat(this.value);
       });
-    }
+
+      bloc.querySelector('.input-fichiers-couleur').addEventListener('change', async function() {
+        if (this.files && this.files.length > 0) {
+          for (const f of this.files) {
+            if (f.size > TAILLE_MAX_FICHIER) {
+              alert(`Le fichier "${f.name}" dépasse la limite autorisée de 1 Mo.`);
+              this.value = '';
+              return;
+            }
+          }
+          try {
+            const fichiersTab = Array.from(this.files);
+            const bases64 = await Promise.all(fichiersTab.map(f => convertirFichierEnBase64(f)));
+            if (!variantesCouleursActuelles[index].images) {
+              variantesCouleursActuelles[index].images = [];
+            }
+            variantesCouleursActuelles[index].images = variantesCouleursActuelles[index].images.concat(bases64);
+            afficherLignesCouleursProduit();
+          } catch (err) {
+            console.error("Erreur conversion images couleur :", err);
+          }
+        }
+      });
+
+      bloc.querySelectorAll('[data-supprimer-img-couleur]').forEach(btnSup => {
+        btnSup.addEventListener('click', function() {
+          const [cIdx, iIdx] = this.dataset.supprimerImgCouleur.split('-').map(Number);
+          variantesCouleursActuelles[cIdx].images.splice(iIdx, 1);
+          afficherLignesCouleursProduit();
+        });
+      });
+
+      bloc.querySelector('.bouton-supprimer-couleur').addEventListener('click', function() {
+        variantesCouleursActuelles.splice(index, 1);
+        afficherLignesCouleursProduit();
+      });
+
+      conteneur.appendChild(bloc);
+    });
+  }
+
+  document.getElementById('bouton-ajouter-variante-couleur').addEventListener('click', function() {
+    variantesCouleursActuelles.push({ nom: '', prixBase: null, images: [] });
+    afficherLignesCouleursProduit();
   });
 
   function afficherLignesCollections() {
@@ -424,7 +416,6 @@
     collectionsSelectionnees.forEach(function(valeurActive, index) {
       const ligne = document.createElement('div');
       ligne.className = 'collection-ligne-item';
-
       const collectionObj = collectionsActuelles.find(function(c) { return c.id === valeurActive; });
       const labelTxt = collectionObj ? collectionObj.label : 'Aucun (visible seulement dans "Tout voir")';
 
@@ -439,9 +430,7 @@
         <div class="custom-select">
           <button type="button" class="custom-select-toggle" aria-expanded="false">
             <span>${echapperHTML(labelTxt)}</span>
-            <svg class="caret" viewBox="0 0 10 10" fill="none">
-              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <svg class="caret" viewBox="0 0 10 10" fill="none"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <ul class="custom-select-options" role="listbox">${optionsHTML}</ul>
         </div>
@@ -458,8 +447,7 @@
 
       toggleBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        const isOpen = optionsUl.classList.toggle('open');
-        toggleBtn.setAttribute('aria-expanded', String(isOpen));
+        optionsUl.classList.toggle('open');
       });
 
       optionsUl.querySelectorAll('li').forEach(function(li) {
@@ -468,12 +456,7 @@
           hiddenInp.value = val;
           labelSpan.textContent = this.textContent;
           collectionsSelectionnees[index] = val;
-
-          optionsUl.querySelectorAll('li').forEach(function(l) { l.classList.remove('selected'); });
-          this.classList.add('selected');
-
           optionsUl.classList.remove('open');
-          toggleBtn.setAttribute('aria-expanded', 'false');
         });
       });
 
@@ -499,10 +482,7 @@
 
   function ouvrirFormulaireArticle(id) {
     messageArticle.style.display = 'none';
-
-    const produit = id
-      ? produitsActuels.find(function(p) { return p.id === id; })
-      : null;
+    const produit = id ? produitsActuels.find(function(p) { return p.id === id; }) : null;
 
     document.getElementById('article-id-en-cours').value = id || '';
     document.getElementById('article-nom').value = produit ? produit.nom : '';
@@ -511,18 +491,17 @@
     document.getElementById('article-taxes').value = produit ? produit.taxes : 0.40;
 
     reinitialiserChampsImages();
-
     imagesActuellesEnCours = produit && produit.images ? [...produit.images] : [];
     afficherApercuImagesExistantes();
 
+    variantesCouleursActuelles = produit && produit.variantesCouleurs ? JSON.parse(JSON.stringify(produit.variantesCouleurs)) : [];
+    afficherLignesCouleursProduit();
+
     if (produit && produit.collections && Array.isArray(produit.collections) && produit.collections.length > 0) {
       collectionsSelectionnees = produit.collections.slice();
-    } else if (produit && produit.collection) {
-      collectionsSelectionnees = [produit.collection];
     } else {
       collectionsSelectionnees = [''];
     }
-
     afficherLignesCollections();
 
     formulaireArticle.classList.remove('hidden');
@@ -532,18 +511,16 @@
   function afficherApercuImagesExistantes() {
     const conteneur = document.getElementById('apercu-images-existantes');
     if (!conteneur) return;
-
     conteneur.innerHTML = imagesActuellesEnCours.map((url, index) => `
       <div style="position:relative; display:inline-block;">
         <img src="${echapperHTML(url)}" style="width:60px; height:60px; object-fit:cover; border-radius:4px; border:1px solid var(--line);">
-        <button type="button" data-supprimer-img="${index}" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:12px; line-height:1;">×</button>
+        <button type="button" data-supprimer-img="${index}" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer;">×</button>
       </div>
     `).join('');
 
     conteneur.querySelectorAll('[data-supprimer-img]').forEach(btn => {
       btn.addEventListener('click', function() {
-        const idx = parseInt(this.dataset.supprimerImg, 10);
-        imagesActuellesEnCours.splice(idx, 1);
+        imagesActuellesEnCours.splice(parseInt(this.dataset.supprimerImg, 10), 1);
         afficherApercuImagesExistantes();
       });
     });
@@ -551,38 +528,73 @@
 
   formulaireArticle.addEventListener('submit', async function(event) {
     event.preventDefault();
+    messageArticle.style.display = 'none';
 
     const id = document.getElementById('article-id-en-cours').value;
-
     const inputsFichiers = document.querySelectorAll('.article-fichiers-input');
     let nouveauxFichiers = [];
 
-    inputsFichiers.forEach(input => {
+    for (const input of inputsFichiers) {
       if (input.files && input.files.length > 0) {
-        nouveauxFichiers = nouveauxFichiers.concat(Array.from(input.files));
+        for (const f of input.files) {
+          if (f.size > TAILLE_MAX_FICHIER) {
+            messageArticle.textContent = `Le fichier "${f.name}" dépasse 1 Mo. Impossible de l'importer.`;
+            messageArticle.style.display = 'block';
+            return;
+          }
+          nouveauxFichiers.push(f);
+        }
       }
-    });
+    }
 
-    const collectionsFiltrees = collectionsSelectionnees
-      .map(function(c) { return c.trim(); })
-      .filter(Boolean);
+    // VERIFICATION STRICTE DES VARIANTES DE COULEURS SI ELLES SONT PRESENTES
+    for (let i = 0; i < variantesCouleursActuelles.length; i++) {
+      const v = variantesCouleursActuelles[i];
+      if (!v.nom || v.nom.trim() === '') {
+        messageArticle.textContent = `La variante de couleur #${i + 1} doit obligatoirement avoir un nom.`;
+        messageArticle.style.display = 'block';
+        return;
+      }
+      if (v.prixBase === undefined || v.prixBase === null || isNaN(v.prixBase)) {
+        messageArticle.textContent = `La couleur "${v.nom}" doit obligatoirement avoir un prix défini.`;
+        messageArticle.style.display = 'block';
+        return;
+      }
+      if (!v.images || v.images.length === 0) {
+        messageArticle.textContent = `La couleur "${v.nom}" doit obligatoirement avoir au moins une image.`;
+        messageArticle.style.display = 'block';
+        return;
+      }
+    }
 
-    const collectionsFinales = Array.from(new Set(collectionsFiltrees));
+    const collectionsFiltrees = collectionsSelectionnees.map(c => c.trim()).filter(Boolean);
     const boutonSubmit = formulaireArticle.querySelector('button[type="submit"]');
 
     try {
       boutonSubmit.disabled = true;
       boutonSubmit.textContent = 'Enregistrement...';
 
-      // Conversion des fichiers locaux en Base64 au lieu d'utiliser Storage
       let nouvellesUrlsBase64 = [];
       if (nouveauxFichiers.length > 0) {
-        nouvellesUrlsBase64 = await Promise.all(
-          nouveauxFichiers.map(fichier => convertirFichierEnBase64(fichier))
-        );
+        nouvellesUrlsBase64 = await Promise.all(nouveauxFichiers.map(f => convertirFichierEnBase64(f)));
       }
 
-      const toutesLesImages = [...imagesActuellesEnCours, ...nouvellesUrlsBase64];
+      const toutesLesImages = [...imagesActuellesEnCours, ...nouvellesUrlsBase64].filter(Boolean);
+
+      // L'IMAGE PRINCIPALE EST OBLIGATOIRE
+      if (toutesLesImages.length === 0) {
+        messageArticle.textContent = "L'article doit comporter au moins une image principale.";
+        messageArticle.style.display = 'block';
+        boutonSubmit.disabled = false;
+        boutonSubmit.textContent = 'Enregistrer';
+        return;
+      }
+
+      const variantesNettoyees = variantesCouleursActuelles.map(v => ({
+        nom: String(v.nom).trim(),
+        prixBase: Number(v.prixBase),
+        images: Array.isArray(v.images) ? v.images.filter(Boolean) : []
+      }));
 
       const donnees = {
         nom: document.getElementById('article-nom').value.trim(),
@@ -590,11 +602,13 @@
         prixBase: parseFloat(document.getElementById('article-prix-base').value) || 0,
         taxes: parseFloat(document.getElementById('article-taxes').value) || 0,
         images: toutesLesImages,
-        collections: collectionsFinales
+        variantesCouleurs: variantesNettoyees,
+        collections: Array.from(new Set(collectionsFiltrees))
       };
 
-      if (!donnees.nom) {
-        messageArticle.textContent = 'Le nom est obligatoire.';
+      const tailleTotaleOctets = new TextEncoder().encode(JSON.stringify(donnees)).length;
+      if (tailleTotaleOctets > TAILLE_MAX_TOTALE) {
+        messageArticle.textContent = `La taille totale (${(tailleTotaleOctets / 1024 / 1024).toFixed(2)} Mo) dépasse la limite Firestore (1 Mo). Réduisez la taille des images.`;
         messageArticle.style.display = 'block';
         boutonSubmit.disabled = false;
         boutonSubmit.textContent = 'Enregistrer';
@@ -606,12 +620,10 @@
       } else {
         await ajouterProduit(donnees);
       }
-
       formulaireArticle.classList.add('hidden');
-
     } catch (erreur) {
       console.error(erreur);
-      messageArticle.textContent = "Impossible d'enregistrer l'article : " + erreur.message;
+      messageArticle.textContent = "Erreur : " + erreur.message;
       messageArticle.style.display = 'block';
     } finally {
       boutonSubmit.disabled = false;
@@ -619,98 +631,10 @@
     }
   });
 
-  // Onglets Collections
   async function chargerCollections() {
-    try {
-      collectionsActuelles = await obtenirCollections();
-      afficherCollections();
-      afficherLignesCollections();
-    } catch (erreur) {
-      console.error('Impossible de charger les collections :', erreur);
-    }
+    collectionsActuelles = await obtenirCollections();
+    afficherLignesCollections();
   }
-
-  function afficherCollections() {
-    const conteneur = document.getElementById('admin-collections-liste');
-
-    if (collectionsActuelles.length === 0) {
-      conteneur.innerHTML = '<p class="account-intro">Aucun onglet pour le moment.</p>';
-      return;
-    }
-
-    conteneur.innerHTML = collectionsActuelles.map(function(c) {
-      return `
-        <div class="admin-ligne">
-          <div class="admin-ligne-info">
-            <strong>${echapperHTML(c.label)}</strong>
-          </div>
-          <div class="admin-ligne-actions">
-            <button type="button" class="btn btn-secondary" data-renommer="${echapperHTML(c.id)}">Renommer</button>
-            <button type="button" class="btn btn-secondary" data-supprimer-collection="${echapperHTML(c.id)}">Supprimer</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    conteneur.querySelectorAll('[data-renommer]').forEach(function(bouton) {
-      bouton.addEventListener('click', async function() {
-        const actuel = collectionsActuelles.find(function(c) { return c.id === bouton.dataset.renommer; });
-        const nouveauLabel = prompt('Nouveau nom de cet onglet :', actuel ? actuel.label : '');
-
-        if (!nouveauLabel || !nouveauLabel.trim()) return;
-
-        try {
-          await modifierCollection(bouton.dataset.renommer, { label: nouveauLabel.trim() });
-          await chargerCollections();
-        } catch (erreur) {
-          console.error(erreur);
-          alert("Impossible de renommer l'onglet.");
-        }
-      });
-    });
-
-    conteneur.querySelectorAll('[data-supprimer-collection]').forEach(function(bouton) {
-      bouton.addEventListener('click', async function() {
-        if (!confirm('Supprimer cet onglet ? Les articles qui y sont rattachés resteront visibles dans "Tout voir".')) return;
-
-        try {
-          await supprimerCollection(bouton.dataset.supprimerCollection);
-          await chargerCollections();
-        } catch (erreur) {
-          console.error(erreur);
-          alert("Impossible de supprimer l'onglet.");
-        }
-      });
-    });
-  }
-
-  document.getElementById('collection-form').addEventListener('submit', async function(event) {
-    event.preventDefault();
-
-    const messageCollection = document.getElementById('collection-message');
-    const champLabel = document.getElementById('collection-label');
-    const label = champLabel.value.trim();
-
-    if (!label) return;
-
-    try {
-      const ordre = collectionsActuelles.length > 0
-        ? Math.max.apply(null, collectionsActuelles.map(function(c) { return c.ordre || 0; })) + 1
-        : 1;
-
-      await ajouterCollection({ label, ordre });
-
-      champLabel.value = '';
-      messageCollection.style.display = 'none';
-
-      await chargerCollections();
-
-    } catch (erreur) {
-      console.error(erreur);
-      messageCollection.textContent = "Impossible d'ajouter cet onglet.";
-      messageCollection.style.display = 'block';
-    }
-  });
 </script>
 
 </body>

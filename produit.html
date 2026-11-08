@@ -8,6 +8,33 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css" />
+<style>
+  .product-color-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0 20px;
+    flex-wrap: wrap;
+  }
+  .color-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    cursor: pointer;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .color-dot:hover {
+    transform: scale(1.15);
+  }
+  .color-dot.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+    transform: scale(1.1);
+  }
+</style>
 </head>
 <body>
 
@@ -36,6 +63,13 @@
     <div class="hero-copy">
       <h1 id="produit-nom"></h1>
       <p class="description" id="produit-description"></p>
+
+      <!-- Sélecteur de couleur interactif -->
+      <div id="section-couleurs-produit" class="hidden">
+        <p style="font-size: 0.88rem; font-weight: 500; margin-bottom: 6px;">Couleur : <span id="nom-couleur-selectionnee" style="font-weight: 400; color: var(--ink-soft);"></span></p>
+        <div class="product-color-selector" id="product-color-dots"></div>
+      </div>
+
       <p class="product-price" id="produit-prix"></p>
       <div class="hero-actions">
         <div class="quantite-selecteur">
@@ -48,11 +82,9 @@
     </div>
   </section>
 
-  <!-- Section Commentaires et Étoiles -->
+  <!-- Section Commentaires -->
   <section class="reviews-section hidden" id="produit-reviews">
     <h2>Avis sur cet article</h2>
-
-    <!-- Formulaire d'Avis (Visible uniquement si l'utilisateur est connecté) -->
     <div id="form-yaada-box" class="review-form hidden">
       <h3>Laissez votre avis et votre note</h3>
       <form id="form-yaada">
@@ -72,7 +104,6 @@
       Vous devez être <a href="portail-compte.html">connecté</a> pour laisser un avis.
     </div>
 
-    <!-- Liste des avis -->
     <div id="tarree-yaadawwanii" class="reviews-list">
       <p>Chargement des avis...</p>
     </div>
@@ -101,6 +132,8 @@
 
   let images = [];
   let indexActuel = 0;
+  let variantesCouleurs = [];
+  let produitActuelGlobal = null;
 
   function afficherImage(index) {
     if (images.length === 0) return;
@@ -118,6 +151,11 @@
   const parametres = new URLSearchParams(window.location.search);
   const idProduit = parametres.get('id');
 
+  async function mettreAJourAffichagePrix(produit, prixPersonnalise = null, role = 'membre') {
+    const produitPourCalcul = (prixPersonnalise !== null && !isNaN(prixPersonnalise)) ? { ...produit, prixBase: prixPersonnalise } : produit;
+    document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produitPourCalcul, role);
+  }
+
   async function charger() {
     if (!idProduit) {
       blocChargement.classList.add('hidden');
@@ -127,7 +165,7 @@
 
     try {
       const produit = await obtenirProduit(idProduit);
-
+      produitActuelGlobal = produit;
       blocChargement.classList.add('hidden');
 
       if (!produit) {
@@ -136,18 +174,66 @@
       }
 
       document.title = 'Gabshop - ' + produit.nom;
-
       document.getElementById('produit-nom').textContent = produit.nom;
       document.getElementById('produit-description').textContent = produit.description || '';
-      document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produit);
+      
+      const roleActuel = auth.currentUser ? await obtenirRoleUtilisateur(auth.currentUser) : 'membre';
+      mettreAJourAffichagePrix(produit, null, roleActuel);
 
-      images = (produit.images && produit.images.length > 0)
-        ? produit.images
-        : ['japanDragon.png'];
+      variantesCouleurs = produit.variantesCouleurs || [];
+      const conteneurRonds = document.getElementById('product-color-dots');
+      const sectionCouleurs = document.getElementById('section-couleurs-produit');
+      const nomCouleurSpan = document.getElementById('nom-couleur-selectionnee');
+
+      if (variantesCouleurs.length > 0) {
+        sectionCouleurs.classList.remove('hidden');
+        conteneurRonds.innerHTML = '';
+
+        variantesCouleurs.forEach((variante, idx) => {
+          const dot = document.createElement('div');
+          dot.className = 'color-dot' + (idx === 0 ? ' active' : '');
+          
+          if (variante.images && variante.images[0]) {
+            dot.style.backgroundImage = `url(${variante.images[0]})`;
+          } else {
+            dot.style.backgroundColor = variante.nom ? variante.nom.toLowerCase() : '#ccc';
+          }
+
+          dot.title = variante.nom;
+
+          dot.addEventListener('click', () => {
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+            nomCouleurSpan.textContent = variante.nom;
+
+            if (variante.images && variante.images.length > 0) {
+              images = variante.images;
+            } else {
+              images = produit.images || ['japanDragon.png'];
+            }
+            afficherImage(0);
+
+            if (variante.prixBase !== undefined && variante.prixBase !== null && !isNaN(variante.prixBase)) {
+              mettreAJourAffichagePrix(produit, variante.prixBase, roleActuel);
+            } else {
+              mettreAJourAffichagePrix(produit, null, roleActuel);
+            }
+          });
+
+          conteneurRonds.appendChild(dot);
+        });
+
+        nomCouleurSpan.textContent = variantesCouleurs[0].nom;
+        images = (variantesCouleurs[0].images && variantesCouleurs[0].images.length > 0) ? variantesCouleurs[0].images : (produit.images || ['japanDragon.png']);
+        if (variantesCouleurs[0].prixBase !== undefined && variantesCouleurs[0].prixBase !== null && !isNaN(variantesCouleurs[0].prixBase)) {
+          mettreAJourAffichagePrix(produit, variantesCouleurs[0].prixBase, roleActuel);
+        }
+      } else {
+        images = (produit.images && produit.images.length > 0) ? produit.images : ['japanDragon.png'];
+      }
 
       galleryImg.alt = produit.nom;
       afficherImage(0);
-
       blocHero.classList.remove('hidden');
 
     } catch (erreur) {
@@ -157,25 +243,17 @@
     }
   }
 
-  // Charger les avis depuis Firestore en temps réel
   function chargerAvis(idProduit) {
-    const q = query(
-      collection(db, 'avis'),
-      where('produitId', '==', idProduit),
-      orderBy('date', 'desc')
-    );
-
+    const q = query(collection(db, 'avis'), where('produitId', '==', idProduit), orderBy('date', 'desc'));
     onSnapshot(q, (snapshot) => {
       tarreeYaadawwanii.innerHTML = '';
       if (snapshot.empty) {
         tarreeYaadawwanii.innerHTML = '<p>Aucun avis pour cet article pour le moment.</p>';
         return;
       }
-
       snapshot.forEach((doc) => {
         const data = doc.data();
         const etoiles = '★'.repeat(data.note) + '☆'.repeat(5 - data.note);
-        
         const item = document.createElement('div');
         item.className = 'review-card';
         item.innerHTML = `
@@ -187,18 +265,21 @@
         `;
         tarreeYaadawwanii.appendChild(item);
       });
-    }, (erreur) => {
-      console.error("Erreur lors de la récupération des avis :", erreur);
     });
   }
 
-  // Suivi de l'état de connexion de l'utilisateur
   onAuthStateChanged(auth, async function(utilisateur) {
     const role = await obtenirRoleUtilisateur(utilisateur);
-    const produit = await obtenirProduit(idProduit);
-    
-    if (produit) {
-      document.getElementById('produit-prix').innerHTML = formaterPrixProduit(produit, role);
+    if (produitActuelGlobal) {
+      const activeDot = document.querySelector('.color-dot.active');
+      let prixActuel = null;
+      if (activeDot && variantesCouleurs.length > 0) {
+        const indexCol = Array.from(document.querySelectorAll('.color-dot')).indexOf(activeDot);
+        if (indexCol !== -1 && variantesCouleurs[indexCol].prixBase !== undefined && variantesCouleurs[indexCol].prixBase !== null) {
+          prixActuel = variantesCouleurs[indexCol].prixBase;
+        }
+      }
+      mettreAJourAffichagePrix(produitActuelGlobal, prixActuel, role);
     }
 
     if (idProduit) {
@@ -209,7 +290,6 @@
         formYaadaBox.classList.remove('hidden');
         seensaErgaa.classList.add('hidden');
 
-        // Soumission du formulaire d'avis
         formYaada.onsubmit = async (e) => {
           e.preventDefault();
           const note = formYaada.querySelector('input[name="rating"]:checked')?.value;
@@ -231,7 +311,7 @@
             });
             formYaada.reset();
           } catch (err) {
-            console.error("Erreur lors de l'envoi de l'avis :", err);
+            console.error("Erreur avis :", err);
           }
         };
       } else {
